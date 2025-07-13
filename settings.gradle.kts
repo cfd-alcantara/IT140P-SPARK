@@ -19,5 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "IT140P_SPARK"
+rootProject.name = "EnrollingFunction"
 include(":app")
+ 
