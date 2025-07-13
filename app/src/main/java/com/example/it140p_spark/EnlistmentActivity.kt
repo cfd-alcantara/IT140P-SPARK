@@ -7,31 +7,43 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
-
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,14 +54,14 @@ import androidx.compose.ui.unit.sp
 import com.example.it140p_spark.ui.theme.IT140P_SPARKTheme
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.json.Json
 
 @Serializable
 data class Course(
@@ -66,31 +78,57 @@ data class CourseSearchResponse(
     val data: List<Course>? = null
 )
 
+@Serializable
+data class EnlistmentResponse(
+    val status: String,
+    val message: String
+)
+
 class EnlistmentActivity : ComponentActivity() {
 
     private val SERVER_URL = "http://192.168.10.1/student_management_system/REST/"
 
-    private var currentStudentId: String by mutableStateOf("")
+    private var currentStudentId: String? by mutableStateOf(null)
 
-    private var selectedCourseId: String by mutableStateOf("")
-    private var selectedCourseName: String by mutableStateOf("Select Course")
+    private val selectedCourses = mutableStateListOf<Course>()
     private var coursesList: List<Course> by mutableStateOf(emptyList())
     private var isCourseDropdownExpanded by mutableStateOf(false)
+    private var searchCourseQuery by mutableStateOf("")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        currentStudentId = intent.getStringExtra("STUDENT_ID") ?: ""
-        if (currentStudentId.isBlank()) {
-            Toast.makeText(this, "Error: Student ID not provided.", Toast.LENGTH_LONG).show()
+        val studentIdFromIntent = intent.getStringExtra("STUDENT_ID")
+        println("EnlistmentActivity received Student ID: $studentIdFromIntent")
+
+        if (studentIdFromIntent.isNullOrBlank()) {
+            Toast.makeText(this, "Error: Student ID not provided. Please log in again.", Toast.LENGTH_LONG).show()
             finish()
             return
         }
+        currentStudentId = studentIdFromIntent
 
         enableEdgeToEdge()
         setContent {
             IT140P_SPARKTheme {
-                EnlistmentScreen()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    currentStudentId?.let {
+                        EnlistmentScreen()
+                    } ?: run {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Student ID missing.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -119,9 +157,9 @@ class EnlistmentActivity : ComponentActivity() {
             }
         }
 
-        androidx.compose.runtime.LaunchedEffect(Unit) {
+        LaunchedEffect(Unit) {
             coroutineScope.launch {
-                fetchCourses(context, httpClient, "")
+                fetchCourses(context, httpClient, searchCourseQuery)
             }
         }
 
@@ -145,10 +183,23 @@ class EnlistmentActivity : ComponentActivity() {
                 )
 
                 Text(
-                    text = "Enlisting for Student ID: $currentStudentId",
+                    text = "Enlisting for Student ID: ${currentStudentId ?: "N/A"}",
                     fontSize = 18.sp,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                OutlinedTextField(
+                    value = searchCourseQuery,
+                    onValueChange = { newValue ->
+                        searchCourseQuery = newValue
+                        coroutineScope.launch {
+                            fetchCourses(context, httpClient, newValue)
+                        }
+                    },
+                    label = { Text("Search Courses") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 )
 
                 ExposedDropdownMenuBox(
@@ -157,10 +208,10 @@ class EnlistmentActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedTextField(
-                        value = selectedCourseName,
+                        value = if (selectedCourses.isEmpty()) "Select Courses" else "${selectedCourses.size} courses selected",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Select Course") },
+                        label = { Text("Add Courses") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCourseDropdownExpanded) },
                         modifier = Modifier
                             .menuAnchor()
@@ -171,29 +222,82 @@ class EnlistmentActivity : ComponentActivity() {
                         expanded = isCourseDropdownExpanded,
                         onDismissRequest = { isCourseDropdownExpanded = false }
                     ) {
-                        if (coursesList.isEmpty()) {
+                        if (coursesList.isEmpty() && searchCourseQuery.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("Loading courses... or no courses available.") },
+                                text = { Text("Loading courses...") },
+                                onClick = { /* Do nothing */ }
+                            )
+                        } else if (coursesList.isEmpty() && searchCourseQuery.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No courses found for '${searchCourseQuery}'") },
                                 onClick = { /* Do nothing */ }
                             )
                         } else {
                             coursesList.forEach { course ->
-                                DropdownMenuItem(
-                                    text = { Text("${course.courseName} (${course.courseCode}) - ${course.courseUnits} units") },
-                                    onClick = {
-                                        selectedCourseName = "${course.courseName} (${course.courseCode})"
-                                        selectedCourseId = course.courseId
-                                        isCourseDropdownExpanded = false
-                                    }
-                                )
+                                if (!selectedCourses.contains(course)) {
+                                    DropdownMenuItem(
+                                        text = { Text("${course.courseCode} - ${course.courseName} (${course.courseUnits} units)") },
+                                        onClick = {
+                                            selectedCourses.add(course)
+                                            isCourseDropdownExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (selectedCourses.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = "Selected Courses:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        LazyColumn(modifier = Modifier.height(200.dp)) {
+                            items(selectedCourses) { course ->
+                                SelectedCourseItem(course = course) {
+                                    selectedCourses.remove(course)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 AddEnlistmentButton(httpClient)
             }
+        }
+    }
+
+    @Composable
+    fun SelectedCourseItem(course: Course, onRemove: () -> Unit) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp, horizontal = 8.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "${course.courseCode} - ${course.courseName}", style = MaterialTheme.typography.bodySmall)
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove course",
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable(onClick = onRemove),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 
@@ -204,7 +308,26 @@ class EnlistmentActivity : ComponentActivity() {
         Button(
             onClick = {
                 coroutineScope.launch {
-                    KTORaddEnlistment(mContext, httpClient, currentStudentId, selectedCourseId)
+                    if (selectedCourses.isEmpty()) {
+                        mContext.toast("Please select at least one course to enlist.")
+                        return@launch
+                    }
+
+                    var allEnlistmentsSuccessful = true
+                    for (course in selectedCourses) {
+                        println("Enlisting: StudentID = ${currentStudentId}, CourseID = ${course.courseId}")
+                        val success = KTORaddEnlistment(mContext, httpClient, currentStudentId!!, course.courseId)
+                        if (!success) {
+                            allEnlistmentsSuccessful = false
+                        }
+                    }
+
+                    if (allEnlistmentsSuccessful) {
+                        mContext.toast("Enlisted successfully!")
+                        selectedCourses.clear()
+                    } else {
+                        mContext.toast("Some enlistments failed.")
+                    }
                 }
             },
             shape = RoundedCornerShape(12.dp),
@@ -217,7 +340,7 @@ class EnlistmentActivity : ComponentActivity() {
                 .height(60.dp)
         ) {
             Text(
-                text = "Add Enlistment Record",
+                text = "Add Selected Enlistments",
                 fontSize = 18.sp,
                 textAlign = TextAlign.Center
             )
@@ -238,54 +361,50 @@ class EnlistmentActivity : ComponentActivity() {
 
                 if (parsedResponse.status == "success" && parsedResponse.data != null) {
                     coursesList = parsedResponse.data
-                    if (coursesList.isNotEmpty()) {
-                        if (selectedCourseId.isBlank()) {
-                            selectedCourseName = "${coursesList.first().courseName} (${coursesList.first().courseCode})"
-                            selectedCourseId = coursesList.first().courseId
-                        }
-                    } else {
-                        context.toast("No courses available to display.")
-                        selectedCourseName = "No Courses Available"
-                        selectedCourseId = ""
-                    }
                 } else {
                     context.toast("Server reported error: ${parsedResponse.message ?: "Unknown error"}")
+                    coursesList = emptyList()
                 }
             } else {
                 context.toast("HTTP Error fetching courses: ${response.status.value} - ${response.status.description}")
+                coursesList = emptyList()
             }
 
         } catch (e: Exception) {
             e.printStackTrace()
             context.toast("Error fetching courses: ${e.localizedMessage}")
             coursesList = emptyList()
-            selectedCourseName = "Error Loading Courses"
-            selectedCourseId = ""
         }
     }
 
-    private suspend fun KTORaddEnlistment(context: Context, httpClient: HttpClient, studentId: String, courseId: String) {
+    private suspend fun KTORaddEnlistment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
         try {
-            if (studentId.isBlank()) {
-                context.toast("Student ID is missing. Cannot enlist.")
-                return
-            }
-            if (courseId.isBlank() || courseId == "Select Course") {
-                context.toast("Please select a Course.")
-                return
+            if (studentId.isBlank() || courseId.isBlank()) {
+                context.toast("Missing student or course ID.")
+                return false
             }
 
             val fullUrl = "${SERVER_URL}add_enlistment.php?student_id=${studentId}&course_id=${courseId}"
-            println("Sending enlistment request to: $fullUrl")
+            println("Requesting: $fullUrl")
 
-            val response: HttpResponse = httpClient.get(fullUrl)
-            val stringBody: String = response.bodyAsText()
-            println("Server Response: ${response.status} - $stringBody")
-            context.toast("Add Enlistment: ${response.status.value} - $stringBody")
+            val response = httpClient.get(fullUrl)
+            val responseBodyString = response.bodyAsText()
+            println("Response from server: ${response.status} - $responseBodyString")
+
+            val enlistmentResponse = Json.decodeFromString<EnlistmentResponse>(responseBodyString)
+
+            if (enlistmentResponse.status == "success") {
+                context.toast(enlistmentResponse.message)
+                return true
+            } else {
+                context.toast("Failed to enlist $courseId: ${enlistmentResponse.message}")
+                return false
+            }
 
         } catch (e: Exception) {
             e.printStackTrace()
-            context.toast("Error adding enlistment: ${e.localizedMessage}")
+            context.toast("Enlistment error for $courseId: ${e.localizedMessage ?: "Unknown"}")
+            return false
         }
     }
 
