@@ -79,7 +79,7 @@ data class EnlistmentResponse(
 
 class EnlistmentActivity : ComponentActivity() {
 
-    private val SERVER_URL = "http://192.168.10.1/student_management_system/REST/"
+    private val serverURL = "http://192.168.10.1/student_management_system/REST/"
 
     private var currentStudentId: String? by mutableStateOf(null)
 
@@ -409,9 +409,9 @@ class EnlistmentActivity : ComponentActivity() {
         for (course in coursesToProcess) {
             println("${if (isAddAction) "Enlisting" else "Removing"}: StudentID = ${currentStudentId}, CourseID = ${course.courseId}")
             val success = if (isAddAction) {
-                KTORaddEnlistment(context, httpClient, currentStudentId!!, course.courseId)
+                ktorAddEnlistment(context, httpClient, currentStudentId!!, course.courseId)
             } else {
-                KTORremoveEnlistment(context, httpClient, currentStudentId!!, course.courseId)
+                ktorRemoveEnlistment(context, httpClient, currentStudentId!!, course.courseId)
             }
 
             if (success) {
@@ -427,11 +427,9 @@ class EnlistmentActivity : ComponentActivity() {
         val verb = if (isAddAction) "enlisted" else "removed"
 
         if (!anyActionFailed && successfullyProcessedCourses.isNotEmpty()) {
-            context.toast("All selected courses ${actionType} successfully!")
+            context.toast("All selected courses $actionType successfully!")
         } else if (anyActionFailed && successfullyProcessedCourses.isNotEmpty()) {
             context.toast("Some courses ${verb}, but others failed.")
-        } else if (anyActionFailed && successfullyProcessedCourses.isEmpty()) {
-            context.toast("All selected actions failed.")
         } else {
             context.toast("No courses were processed for action.")
         }
@@ -440,7 +438,7 @@ class EnlistmentActivity : ComponentActivity() {
 
     private suspend fun fetchCourses(context: Context, httpClient: HttpClient, query: String) {
         try {
-            val fullUrl = "${SERVER_URL}search_courseinfo.php?query=${query}"
+            val fullUrl = "${serverURL}search_courseinfo.php?query=${query}"
             println("Fetching courses from: $fullUrl")
 
             val response: HttpResponse = httpClient.get(fullUrl)
@@ -468,14 +466,14 @@ class EnlistmentActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun KTORaddEnlistment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
+    private suspend fun ktorAddEnlistment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
         try {
             if (studentId.isBlank() || courseId.isBlank()) {
                 context.toast("Missing student or course ID.")
                 return false
             }
 
-            val fullUrl = "${SERVER_URL}add_enlistment.php?student_id=${studentId}&course_id=${courseId}"
+            val fullUrl = "${serverURL}add_enlistment.php?student_id=${studentId}&course_id=${courseId}"
             println("Requesting: $fullUrl")
 
             val response = httpClient.get(fullUrl)
@@ -498,14 +496,14 @@ class EnlistmentActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun KTORremoveEnlistment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
+    private suspend fun ktorRemoveEnlistment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
         try {
             if (studentId.isBlank() || courseId.isBlank()) {
                 context.toast("Missing student or course ID.")
                 return false
             }
 
-            val fullUrl = "${SERVER_URL}remove_enlistment.php?student_id=${studentId}&course_id=${courseId}"
+            val fullUrl = "${serverURL}remove_enlistment.php?student_id=${studentId}&course_id=${courseId}"
             println("Requesting removal: $fullUrl")
 
             val response = httpClient.get(fullUrl)
