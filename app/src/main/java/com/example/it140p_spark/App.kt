@@ -19,6 +19,7 @@ import com.example.it140p_spark.ui.screens.EnrollScreen
 import com.example.it140p_spark.ui.screens.RecordsScreen
 import com.example.it140p_spark.ui.screens.ScheduleScreen
 
+/* todo: save current screen state when phone is rotated to landscape/portrait */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App() {

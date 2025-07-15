@@ -10,8 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -71,7 +71,7 @@ fun EnrollTopBar(
                 }
             }
             IconButton(onClick = { /* do something*/ }) {
-                Icon(imageVector = Icons.Filled.Settings, contentDescription = "Open Settings")
+                Icon(imageVector = Icons.Filled.FilterList, contentDescription = "Open Filter Drawer")
             }
         }
     )
