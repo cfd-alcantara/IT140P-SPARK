@@ -18,14 +18,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class NavItem(val route: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector, val label: String) {
     data object Schedule : NavItem("schedule", Icons.Filled.Today, Icons.Outlined.Today, "Schedule")
-    data object Enrollment : NavItem("enrollment", Icons.Filled.CollectionsBookmark, Icons.Outlined.CollectionsBookmark, "Enrollment")
+    data object Enroll : NavItem("enroll", Icons.Filled.CollectionsBookmark, Icons.Outlined.CollectionsBookmark, "Enroll")
     data object Billing : NavItem("billing", Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, "Billing")
     data object Records : NavItem("records", Icons.Filled.School, Icons.Outlined.School, "Records")
 }
 
 val navItems = listOf(
     NavItem.Schedule,
-    NavItem.Enrollment,
+    NavItem.Enroll,
     NavItem.Billing,
     NavItem.Records,
 )
