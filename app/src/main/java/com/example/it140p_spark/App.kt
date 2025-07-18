@@ -14,7 +14,7 @@ import com.example.it140p_spark.ui.screens.RecordsScreen
 import com.example.it140p_spark.ui.screens.ScheduleScreen
 
 @Composable
-fun App() {
+fun App(studentId: String) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selectedNavItem = navItems[selectedIndex]
 
@@ -28,7 +28,7 @@ fun App() {
     ) { padding ->
         when (selectedNavItem.route) {
             "schedule" -> ScheduleScreen(padding)
-            "enrollment" -> EnrollmentScreen(padding)
+            "enrollment" -> EnrollmentScreen(studentId, padding)
             "billing" -> BillingScreen(padding)
             "records" -> RecordsScreen(padding)
         }
