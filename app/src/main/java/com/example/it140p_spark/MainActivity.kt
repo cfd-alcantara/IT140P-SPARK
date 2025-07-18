@@ -33,7 +33,6 @@ class MainActivity : ComponentActivity() {
 
     private var receivedUsername: String? by mutableStateOf(null)
     private var receivedStudentId: String? by mutableStateOf(null)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
