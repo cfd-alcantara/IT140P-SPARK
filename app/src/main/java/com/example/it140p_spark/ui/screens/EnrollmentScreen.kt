@@ -2,6 +2,7 @@ package com.example.it140p_spark.ui.screens
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,6 +51,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
+import com.example.it140p_spark.ui.components.CourseCard
+
 
 const val serverURL = "http://192.168.10.1/student_management_system/REST/"
 
@@ -99,21 +104,20 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
         }
     }
 
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val tabTitles = listOf("Enlist", "Section", "Finalize")
+
     DisposableEffect(Unit) {
         onDispose {
             httpClient.close()
         }
     }
 
-    LaunchedEffect(Unit) {
-        fetchCourses(context, httpClient, searchCourseQuery) { updatedList ->
-            coursesList = updatedList
-        }
-    }
-
-    LaunchedEffect(selectedCourses.size) {
-        fetchCourses(context, httpClient, searchCourseQuery) { updatedList ->
-            coursesList = updatedList
+    LaunchedEffect(selectedTabIndex, searchCourseQuery, selectedCourses.size) {
+        if (selectedTabIndex == 0) {
+            fetchCourses(context, httpClient, searchCourseQuery) { updatedList ->
+                coursesList = updatedList
+            }
         }
     }
 
@@ -122,166 +126,248 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(padding),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopCenter
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Student Enrollment",
-                fontSize = 28.sp,
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.padding(bottom = 32.dp)
-            )
-            Text(
-                text = "Enrolling for Student ID: $currentStudentId",
-                fontSize = 18.sp,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            OutlinedTextField(
-                value = searchCourseQuery,
-                onValueChange = { newValue ->
-                    searchCourseQuery = newValue
-                    coroutineScope.launch {
-                        fetchCourses(context, httpClient, newValue) { updatedList ->
-                            coursesList = updatedList
+        Column(modifier = Modifier.fillMaxSize()) {
+            PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
+                tabTitles.forEachIndexed { index, title ->
+                    val selected = selectedTabIndex == index
+                    Tab(
+                        selected = selected,
+                        onClick = { selectedTabIndex = index },
+                        text = {
+                            Text(
+                                title,
+                                color = if (selected)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onBackground
+                            )
                         }
-                    }
-                },
-                label = { Text("Search Courses") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            )
-            Text(
-                text = "List of Available Courses",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(coursesList) { course ->
-                        if (!selectedCourses.contains(course)) {
-                            AvailableCourseItem(course = course) {
-                                selectedCourses.add(course)
+                    )
+                }
+            }
+
+            when (selectedTabIndex) {
+                0 -> {
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Student Enrollment",
+                            fontSize = 28.sp,
+                            style = MaterialTheme.typography.headlineLarge,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        Text(
+                            text = "Enrolling for Student ID: $currentStudentId",
+                            fontSize = 18.sp,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        OutlinedTextField(
+                            value = searchCourseQuery,
+                            onValueChange = { newValue ->
+                                searchCourseQuery = newValue
+                            },
+                            label = { Text("Search Courses") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = "List of Available Courses",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                                .padding(8.dp)
+                        ) {
+                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                items(coursesList) { course ->
+                                    if (!selectedCourses.contains(course)) {
+                                        AvailableCourseItem(course = course) {
+                                            selectedCourses.add(course)
+                                        }
+                                    }
+                                }
+                                if (coursesList.isEmpty() && searchCourseQuery.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = "No courses found for '${searchCourseQuery}'",
+                                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                } else if (coursesList.isEmpty() && searchCourseQuery.isEmpty()) {
+                                    item {
+                                        Text(
+                                            text = "Loading courses...",
+                                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (selectedCourses.isNotEmpty()) {
+                            Text(
+                                text = "Selected Courses for Action",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
+                            ) {
+                                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                    items(selectedCourses) { course ->
+                                        ActionableCourseItem(course = course) {
+                                            selectedCourses.remove(course)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        processSelectedCoursesForAction(
+                                            context,
+                                            httpClient,
+                                            currentStudentId,
+                                            selectedCourses,
+                                            isAddAction = true
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(60.dp)
+                                    .padding(end = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Add Selected",
+                                    fontSize = 18.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        processSelectedCoursesForAction(
+                                            context,
+                                            httpClient,
+                                            currentStudentId,
+                                            selectedCourses,
+                                            isAddAction = false
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(60.dp)
+                                    .padding(start = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Remove Selected",
+                                    fontSize = 18.sp,
+                                    textAlign = TextAlign.Center
+                                )
                             }
                         }
                     }
-                    if (coursesList.isEmpty() && searchCourseQuery.isNotEmpty()) {
+                }
+                1 -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                         item {
                             Text(
-                                text = "No courses found for '${searchCourseQuery}'",
-                                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "Section Content - Placeholder",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
                             )
                         }
-                    } else if (coursesList.isEmpty() && searchCourseQuery.isEmpty()) {
+
                         item {
-                            Text(
-                                text = "Loading courses...",
-                                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            CourseCard(
+                                courseCode = "IT200-1D",
+                                description = "IT Capstone Project 1",
+                                units = "3 Units",
+                                yearAndTerm = "Y4T1",
+                                available = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        item {
+                            CourseCard(
+                                courseCode = "IT201-2A",
+                                description = "Web Development",
+                                units = "3 Units",
+                                yearAndTerm = "Y4T1",
+                                available = false,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
                 }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            if (selectedCourses.isNotEmpty()) {
-                Text(
-                    text = "Selected Courses for Action",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                        .padding(8.dp)
-                ) {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(selectedCourses) { course ->
-                            ActionableCourseItem(course = course) {
-                                selectedCourses.remove(course)
-                            }
+                2 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Finalize Enrollment",
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        Text(
+                            text = "Summary of selected courses and finalization options will go here.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Button(onClick = { /* Handle finalization */ }) {
+                            Text("Submit Enrollment")
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            processSelectedCoursesForAction(
-                                context,
-                                httpClient,
-                                currentStudentId,
-                                selectedCourses,
-                                isAddAction = true
-                            )
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp)
-                        .padding(end = 4.dp)
-                ) {
-                    Text(
-                        text = "Add Selected",
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            processSelectedCoursesForAction(
-                                context,
-                                httpClient,
-                                currentStudentId,
-                                selectedCourses,
-                                isAddAction = false
-                            )
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp)
-                        .padding(start = 4.dp)
-                ) {
-                    Text(
-                        text = "Remove Selected",
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
                 }
             }
         }
