@@ -55,9 +55,11 @@ class MainActivity : ComponentActivity() {
                         studentId = receivedStudentId
                     )
                 }
+                App()
             }
         }
     }
+}
 
     @Composable
     fun MainMenu(username: String?, studentId: String?) {
