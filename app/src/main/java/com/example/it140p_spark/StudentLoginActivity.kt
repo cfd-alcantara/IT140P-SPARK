@@ -37,7 +37,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class StudentLoginActivity : ComponentActivity() {
 
-    private val serverURL = "http://192.168.10.1/student_management_system/REST/"
+    private val serverURL = "http://192.168.137.1/student_management_system/REST/"
     private val loginPHPScript = "student_login_json.php"
 
     override fun onCreate(savedInstanceState: Bundle?) {
