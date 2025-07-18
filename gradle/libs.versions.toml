@@ -5,18 +5,13 @@ coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-
 ktor = "2.3.12"
-
 kotlinxSerialization = "1.7.1"
 
 lifecycleRuntimeKtx = "2.9.1"
-
 activityCompose = "1.10.1"
 composeBom = "2024.09.00"
 materialIconsExtended = "1.7.8"
-ktor = "2.3.12"
-kotlinxSerialization = "1.7.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
