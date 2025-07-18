@@ -37,8 +37,8 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class StudentLoginActivity : ComponentActivity() {
 
-    private val SERVER_URL = "http://192.168.10.1/student_management_system/REST/"
-    private val LOGIN_PHP_SCRIPT = "student_login_json.php"
+    private val serverURL = "http://192.168.10.1/student_management_system/REST/"
+    private val loginPHPScript = "student_login_json.php"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,7 +172,7 @@ class StudentLoginActivity : ComponentActivity() {
         passwordPlain: String
     ): Pair<String, String?> {
         return try {
-            val fullUrl = "${SERVER_URL}$LOGIN_PHP_SCRIPT"
+            val fullUrl = "${serverURL}$loginPHPScript"
             println("Attempting login to: $fullUrl")
 
             val response: HttpResponse = httpClient.post(fullUrl) {
