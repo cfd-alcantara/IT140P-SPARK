@@ -10,9 +10,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val studentId = intent.getStringExtra("STUDENT_ID")
+        val finalStudentId = studentId ?: "UNKNOWN_STUDENT"
+
         setContent {
             IT140P_SPARKTheme {
-                App()
+                App(
+                    studentId = finalStudentId 
+                )
             }
         }
     }
