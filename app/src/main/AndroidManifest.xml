@@ -12,20 +12,13 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.IT140P_SPARKTheme"
-        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.IT140P_SPARK"
         tools:targetApi="31">
 
         <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:theme="@style/Theme.IT140P_SPARKTheme" />
-
-        <activity
-            android:name=".StudentLoginActivity"
+            android:name=".ui.screens.LoginScreen"
             android:exported="true"
-            android:label="Student Login"
-            android:theme="@style/Theme.IT140P_SPARKTheme">
+            android:theme="@style/Theme.IT140P_SPARK">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -33,10 +26,9 @@
         </activity>
 
         <activity
-            android:name=".EnlistmentActivity"
+            android:name=".MainActivity"
             android:exported="false"
-            android:label="Enlistment"
-            android:theme="@style/Theme.IT140P_SPARKTheme" />
+            android:theme="@style/Theme.IT140P_SPARK" />
 
     </application>
 </manifest>
