@@ -52,9 +52,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
 import com.example.it140p_spark.ui.components.CourseCard
+import com.example.it140p_spark.ui.components.TimeTable_Sectioning
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import androidx.compose.material3.AlertDialog
 
 
-const val serverURL = "http://192.168.10.1/student_management_system/REST/"
+const val serverURL = "http://192.168.100.9/student_management_system/REST/"
 
 @Serializable
 data class Course(
@@ -65,10 +70,29 @@ data class Course(
 )
 
 @Serializable
+data class EnlistedCourse(
+    @SerialName("CourseID") val courseId: String,
+    @SerialName("CourseName") val courseName: String,
+    @SerialName("CourseCode") val courseCode: String,
+    @SerialName("SectionID") val sectionId: String,
+    @SerialName("SectionCode") val sectionCode: String,
+    @SerialName("CourseUnits") val courseUnits: String,
+    @SerialName("StartTime") val startTime: String,
+    @SerialName("EndTime") val endTime: String
+)
+
+@Serializable
 data class CourseSearchResponse(
     val status: String,
     val message: String? = null,
     val data: List<Course>? = null
+)
+
+@Serializable
+data class CourseSectionSearchResponse(
+    val status: String,
+    val message: String? = null,
+    val data: List<EnlistedCourse>? = null
 )
 
 @Serializable
@@ -86,10 +110,19 @@ fun Context.toast(message: CharSequence) {
 fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-
     val currentStudentId = studentId
+    val enlistmentIdState = remember { mutableStateOf<String?>(null) }
+    val enlistmentId = enlistmentIdState.value
+
+    //Enlistment
     val selectedCourses = remember { mutableStateListOf<Course>() }
     var coursesList: List<Course> by remember { mutableStateOf(emptyList()) }
+
+    //Sectioning
+    val selectedCourseSection = remember { mutableStateListOf<EnlistedCourse>() }
+    var enlistedCourses: List<EnlistedCourse> by remember { mutableStateOf(emptyList()) }
+    val selectedSectionIds = remember { mutableStateListOf<String>() }
+
     var searchCourseQuery by remember { mutableStateOf("") }
 
     val httpClient = remember {
@@ -117,6 +150,15 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
         if (selectedTabIndex == 0) {
             fetchCourses(context, httpClient, searchCourseQuery) { updatedList ->
                 coursesList = updatedList
+            }
+        }
+        else if (selectedTabIndex == 1) {
+            fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
+                enlistmentIdState.value = fetchedId
+            }
+
+            fetchCourseSections(context, httpClient, searchCourseQuery) { updatedList ->
+                enlistedCourses = updatedList
             }
         }
     }
@@ -307,43 +349,91 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         }
                     }
                 }
-                1 -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        item {
-                            Text(
-                                text = "Section Content - Placeholder",
-                                style = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                1 -> {LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        Text(
+                            text = "Available Sections for Enlisted Courses",
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    items(enlistedCourses) { course ->
+                        val uniqueId = course.courseId + course.sectionCode
+                        val isSelected = selectedSectionIds.contains(uniqueId)
 
-                        item {
-                            CourseCard(
-                                courseCode = "IT200-1D",
-                                description = "IT Capstone Project 1",
-                                units = "3 Units",
-                                yearAndTerm = "Y4T1",
-                                available = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        item {
-                            CourseCard(
-                                courseCode = "IT201-2A",
-                                description = "Web Development",
-                                units = "3 Units",
-                                yearAndTerm = "Y4T1",
-                                available = false,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        AvailableCourseSections(
+                            course = course,
+                            isSelected = isSelected,
+                            onToggleSelect = {
+                                val existingIndex = selectedCourseSection.indexOfFirst {
+                                    it.courseId == course.courseId
+                                }
+
+                                if (isSelected) {
+                                    selectedSectionIds.remove(uniqueId)
+                                    selectedCourseSection.removeAt(existingIndex)
+                                } else {
+                                    if (existingIndex != -1) {
+                                        val existing = selectedCourseSection[existingIndex]
+                                        val existingUniqueId = existing.courseId + existing.sectionCode
+                                        selectedCourseSection.removeAt(existingIndex)
+                                        selectedSectionIds.remove(existingUniqueId)
+                                    }
+                                    selectedSectionIds.add(uniqueId)
+                                    selectedCourseSection.add(course)
+                                }
+                            },
+                            onSectionConfirmed = { confirmedCourse -> // NEW
+                                coroutineScope.launch {
+                                    if (enlistmentId != null) {
+                                        ktorInsertSection(context, httpClient, enlistmentId, confirmedCourse.courseId, confirmedCourse.sectionId)
+                                    } else {
+                                        context.toast("Enlistment ID missing.")
+                                    }
+                                }
+                            }
+                        )
+                    }
+
+                    item {
+                        Box(modifier = Modifier.height(600.dp)) { // adjust as needed
+                            TimeTable_Sectioning()
                         }
                     }
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    if (enlistmentId != null) {
+                                        selectedCourseSection.forEach { course ->
+                                            val courseId = course.courseId
+                                            val sectionId = course.sectionId // You may need to modify if your backend uses section ID instead of code
+                                            ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
+                                        }
+                                        context.toast("Sections submitted.")
+                                    } else {
+                                        context.toast("Enlistment ID not found.")
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Confirm Section Selection")
+                        }
+                    }
+
+                }
+
                 }
                 2 -> {
                     Column(
@@ -373,6 +463,33 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
         }
     }
 }
+
+suspend fun fetchEnlistmentId(
+    context: Context,
+    httpClient: HttpClient,
+    studentId: String,
+    onFetched: (String?) -> Unit
+) {
+    try {
+        val response = httpClient.get("${serverURL}get_enlistmentID.php?student_id=$studentId")
+        val body = response.bodyAsText()
+        println("Fetched enlistment ID response: $body")
+        val json = Json.parseToJsonElement(body).jsonObject
+        val status = json["status"]?.jsonPrimitive?.contentOrNull
+        if (status == "success") {
+            val enlistmentId = json["enlistment_id"]?.jsonPrimitive?.contentOrNull
+            onFetched(enlistmentId)
+        } else {
+            context.toast(json["message"]?.jsonPrimitive?.content ?: "No enlistment found.")
+            onFetched(null)
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        context.toast("Failed to fetch enlistment ID: ${e.localizedMessage}")
+        onFetched(null)
+    }
+}
+
 
 @Composable
 fun AvailableCourseItem(course: Course, onSelect: (Course) -> Unit) {
@@ -404,6 +521,96 @@ fun AvailableCourseItem(course: Course, onSelect: (Course) -> Unit) {
         }
     }
 }
+
+@Composable
+fun AvailableCourseSections(
+    course: EnlistedCourse,
+    isSelected: Boolean,
+    onToggleSelect: (EnlistedCourse) -> Unit,
+    onSectionConfirmed: (EnlistedCourse) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                else MaterialTheme.colorScheme.surface,
+                RoundedCornerShape(4.dp)
+            )
+            .border(
+                1.dp,
+                if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+                RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "${course.courseCode} - ${course.courseName} \n${course.sectionCode} \n${course.startTime} - ${course.endTime}",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+
+        Button(
+            onClick = {
+                if (isSelected) {
+                    // Immediately deselect without confirmation
+                    onToggleSelect(course)
+                } else {
+                    // Ask confirmation before selecting
+                    showDialog = true
+                }
+            },
+            modifier = Modifier.padding(start = 8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isSelected)
+                    MaterialTheme.colorScheme.surfaceVariant
+                else
+                    MaterialTheme.colorScheme.primary,
+                contentColor = if (isSelected)
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                else
+                    MaterialTheme.colorScheme.onPrimary
+            ),
+            shape = RoundedCornerShape(4.dp)
+        ) {
+            Text(if (isSelected) "Deselect" else "Select")
+        }
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Confirm Selection") },
+            text = {
+                Text("Are you sure you want to select this section?\n\n${course.courseCode} (${course.sectionCode}) | ${course.startTime} - ${course.endTime}")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onToggleSelect(course)
+                    onSectionConfirmed(course)
+                    showDialog = false
+                }) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                Button(onClick = {
+                    showDialog = false
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
 
 @Composable
 fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
@@ -509,6 +716,32 @@ private suspend fun fetchCourses(context: Context, httpClient: HttpClient, query
     }
 }
 
+private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient, query: String, onCoursesFetched: (List<EnlistedCourse>) -> Unit) {
+    try {
+        val fullUrl = "${serverURL}get_courseEnlisted.php?query=${query}"
+        println("Fetching courses from: $fullUrl")
+        val response: HttpResponse = httpClient.get(fullUrl)
+        val responseBodyString = response.bodyAsText()
+        println("Raw JSON response for courses: $responseBodyString")
+        if (response.status.value == 200) {
+            val parsedResponse = Json.decodeFromString<CourseSectionSearchResponse>(responseBodyString)
+            if (parsedResponse.status == "success" && parsedResponse.data != null) {
+                onCoursesFetched(parsedResponse.data)
+            } else {
+                context.toast("Server reported error: ${parsedResponse.message ?: "Unknown error"}")
+                onCoursesFetched(emptyList())
+            }
+        } else {
+            context.toast("HTTP Error fetching courses: ${response.status.value} - ${response.status.description}")
+            onCoursesFetched(emptyList())
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        context.toast("Error fetching courses: ${e.localizedMessage}")
+        onCoursesFetched(emptyList())
+    }
+}
+
 private suspend fun ktorAddEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
     try {
         if (studentId.isBlank() || courseId.isBlank()) {
@@ -556,5 +789,32 @@ private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClien
         e.printStackTrace()
         context.toast("Removal error for $courseId: ${e.localizedMessage ?: "Unknown"}")
         return false
+    }
+}
+
+suspend fun ktorInsertSection(
+    context: Context,
+    httpClient: HttpClient,
+    enlistmentId: String,
+    courseId: String,
+    sectionId: String
+): Boolean {
+    return try {
+        val fullUrl = "${serverURL}insert_section.php?EnlistmentID=$enlistmentId&CourseID=$courseId&SectionID=$sectionId"
+        println("Inserting section via: $fullUrl")
+        val response = httpClient.get(fullUrl)
+        val body = response.bodyAsText()
+        println("Insert section response: ${response.status} - $body")
+        val result = Json.decodeFromString<EnrollmentResponse>(body)
+        if (result.status == "success") {
+            true
+        } else {
+            context.toast("Failed to insert section: ${result.message}")
+            false
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        context.toast("Error inserting section: ${e.localizedMessage}")
+        false
     }
 }
