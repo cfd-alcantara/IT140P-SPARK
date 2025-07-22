@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -51,13 +52,16 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
-import com.example.it140p_spark.ui.components.CourseCard
 import com.example.it140p_spark.ui.components.TimeTable_Sectioning
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import androidx.compose.material3.AlertDialog
-
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 const val serverURL = "http://192.168.100.9/student_management_system/REST/"
 
@@ -77,8 +81,25 @@ data class EnlistedCourse(
     @SerialName("SectionID") val sectionId: String,
     @SerialName("SectionCode") val sectionCode: String,
     @SerialName("CourseUnits") val courseUnits: String,
+    @SerialName("Day") val day: String,
     @SerialName("StartTime") val startTime: String,
     @SerialName("EndTime") val endTime: String
+)
+
+data class GroupedSection(
+    val courseId: String,
+    val courseName: String,
+    val courseCode: String,
+    val sectionId: String,
+    val sectionCode: String,
+    val courseUnits: String,
+    val schedules: List<ScheduleEntry>
+)
+
+data class ScheduleEntry(
+    val day: String,
+    val startTime: String,
+    val endTime: String
 )
 
 @Serializable
@@ -122,6 +143,8 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     val selectedCourseSection = remember { mutableStateListOf<EnlistedCourse>() }
     var enlistedCourses: List<EnlistedCourse> by remember { mutableStateOf(emptyList()) }
     val selectedSectionIds = remember { mutableStateListOf<String>() }
+    var showSuggestionDialog by remember { mutableStateOf(false) }
+    var suggestedSchedule by remember { mutableStateOf<List<GroupedSection>>(emptyList()) }
 
     var searchCourseQuery by remember { mutableStateOf("") }
 
@@ -153,6 +176,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
             }
         }
         else if (selectedTabIndex == 1) {
+
             fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
                 enlistmentIdState.value = fetchedId
             }
@@ -356,23 +380,60 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     item {
-                        Text(
-                            text = "Available Sections for Enlisted Courses",
-                            style = MaterialTheme.typography.headlineSmall,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Available Sections for Enlisted Courses",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    val suggestion = suggestValidSchedule(enlistedCourses)
+                                    if (suggestion != null) {
+                                        suggestedSchedule = suggestion
+                                        showSuggestionDialog = true
+                                    } else {
+                                        context.toast("No valid schedule found.")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Suggest Schedule")
+                            }
+                        }
                     }
-                    items(enlistedCourses) { course ->
-                        val uniqueId = course.courseId + course.sectionCode
+
+                    val groupedSections = enlistedCourses
+                        .groupBy { it.courseId + it.sectionCode }
+                        .map { (_, entries) ->
+                            val first = entries.first()
+                            GroupedSection(
+                                courseId = first.courseId,
+                                courseName = first.courseName,
+                                courseCode = first.courseCode,
+                                sectionId = first.sectionId,
+                                sectionCode = first.sectionCode,
+                                courseUnits = first.courseUnits,
+                                schedules = entries.map {
+                                    ScheduleEntry(it.day, it.startTime, it.endTime)
+                                }
+                            )
+                        }
+
+
+                    items(groupedSections) { section ->
+                        val uniqueId = section.courseId + section.sectionCode
                         val isSelected = selectedSectionIds.contains(uniqueId)
 
-                        AvailableCourseSections(
-                            course = course,
+                        AvailableGroupedSection(
+                            section = section,
                             isSelected = isSelected,
-                            onToggleSelect = {
+                            onToggleSelect = { toggled ->
                                 val existingIndex = selectedCourseSection.indexOfFirst {
-                                    it.courseId == course.courseId
+                                    it.courseId == toggled.courseId
                                 }
 
                                 if (isSelected) {
@@ -386,13 +447,30 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                         selectedSectionIds.remove(existingUniqueId)
                                     }
                                     selectedSectionIds.add(uniqueId)
-                                    selectedCourseSection.add(course)
+                                    // Pick one representative to insert
+                                    val firstSchedule = section.schedules.first()
+                                    selectedCourseSection.add(
+                                        EnlistedCourse(
+                                            courseId = section.courseId,
+                                            courseName = section.courseName,
+                                            courseCode = section.courseCode,
+                                            sectionId = section.sectionId,
+                                            sectionCode = section.sectionCode,
+                                            courseUnits = section.courseUnits,
+                                            day = firstSchedule.day,
+                                            startTime = firstSchedule.startTime,
+                                            endTime = firstSchedule.endTime
+                                        )
+                                    )
                                 }
                             },
-                            onSectionConfirmed = { confirmedCourse -> // NEW
+                            onSectionConfirmed = {
                                 coroutineScope.launch {
                                     if (enlistmentId != null) {
-                                        ktorInsertSection(context, httpClient, enlistmentId, confirmedCourse.courseId, confirmedCourse.sectionId)
+                                        ktorInsertSection(
+                                            context, httpClient, enlistmentId,
+                                            section.courseId, section.sectionId
+                                        )
                                     } else {
                                         context.toast("Enlistment ID missing.")
                                     }
@@ -401,8 +479,9 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         )
                     }
 
+
                     item {
-                        Box(modifier = Modifier.height(600.dp)) { // adjust as needed
+                        Box(modifier = Modifier.height(600.dp)) {
                             TimeTable_Sectioning()
                         }
                     }
@@ -414,7 +493,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                     if (enlistmentId != null) {
                                         selectedCourseSection.forEach { course ->
                                             val courseId = course.courseId
-                                            val sectionId = course.sectionId // You may need to modify if your backend uses section ID instead of code
+                                            val sectionId = course.sectionId
                                             ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
                                         }
                                         context.toast("Sections submitted.")
@@ -433,6 +512,107 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                     }
 
                 }
+                    if (showSuggestionDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showSuggestionDialog = false },
+                            title = { Text("Suggested Schedule") },
+                            text = {
+                                val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+                                Column(
+                                    modifier = Modifier
+                                        .heightIn(min = 100.dp, max = 400.dp) // limit height of scrollable area
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    suggestedSchedule.forEach { section ->
+                                        Text(
+                                            text = "${section.courseCode} - ${section.courseName}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = "Section: ${section.sectionCode}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+
+                                        section.schedules
+                                            .groupBy { it.day }
+                                            .forEach { (day, times) ->
+                                                val mergedRanges = times.mapNotNull {
+                                                    try {
+                                                        val start = LocalTime.parse(it.startTime, timeFormatter)
+                                                        val end = LocalTime.parse(it.endTime, timeFormatter)
+                                                        start to end
+                                                    } catch (e: Exception) {
+                                                        null
+                                                    }
+                                                }.sortedBy { it.first }
+                                                    .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
+                                                        if (acc.isEmpty()) {
+                                                            acc.add(current)
+                                                        } else {
+                                                            val last = acc.last()
+                                                            if (!current.first.isAfter(last.second)) {
+                                                                acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
+                                                            } else {
+                                                                acc.add(current)
+                                                            }
+                                                        }
+                                                        acc
+                                                    }
+
+                                                val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
+                                                val timeRanges = mergedRanges.joinToString(", ") {
+                                                    "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
+                                                }
+
+                                                Text(
+                                                    text = "$day: $timeRanges",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                }
+                            },
+
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        selectedCourseSection.clear()
+                                        selectedSectionIds.clear()
+                                        suggestedSchedule.forEach { grouped ->
+                                            val uniqueId = grouped.courseId + grouped.sectionCode
+                                            grouped.schedules.forEach { schedule ->
+                                                selectedCourseSection.add(
+                                                    EnlistedCourse(
+                                                        courseId = grouped.courseId,
+                                                        courseName = grouped.courseName,
+                                                        courseCode = grouped.courseCode,
+                                                        sectionId = grouped.sectionId,
+                                                        sectionCode = grouped.sectionCode,
+                                                        courseUnits = grouped.courseUnits,
+                                                        day = schedule.day,
+                                                        startTime = schedule.startTime,
+                                                        endTime = schedule.endTime
+                                                    )
+                                                )
+                                            }
+                                            selectedSectionIds.add(uniqueId)
+                                        }
+                                        context.toast("Suggested schedule applied.")
+                                        showSuggestionDialog = false
+                                    }
+                                ) {
+                                    Text("Apply Schedule")
+                                }
+                            },
+                            dismissButton = {
+                                Button(onClick = { showSuggestionDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
 
                 }
                 2 -> {
@@ -551,7 +731,9 @@ fun AvailableCourseSections(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "${course.courseCode} - ${course.courseName} \n${course.sectionCode} \n${course.startTime} - ${course.endTime}",
+            text = "${course.courseCode} - ${course.courseName}\n" +
+                    "Section: ${course.sectionCode}\n" +
+                    "${course.day}: ${course.startTime} - ${course.endTime}",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f),
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -818,3 +1000,179 @@ suspend fun ktorInsertSection(
         false
     }
 }
+
+private fun suggestValidSchedule(sections: List<EnlistedCourse>): List<GroupedSection>? {
+    val grouped = sections.groupBy { it.courseId + it.sectionCode }
+
+    val groupedSections = grouped.map { (_, list) ->
+        val first = list.first()
+        GroupedSection(
+            courseId = first.courseId,
+            courseName = first.courseName,
+            courseCode = first.courseCode,
+            sectionId = first.sectionId,
+            sectionCode = first.sectionCode,
+            courseUnits = first.courseUnits,
+            schedules = list.map { ScheduleEntry(it.day, it.startTime, it.endTime) }
+        )
+    }.groupBy { it.courseId }  // group by courseId to pick one section per course
+
+    fun hasConflict(existing: List<ScheduleEntry>, new: List<ScheduleEntry>): Boolean {
+        for (e in existing) {
+            for (n in new) {
+                if (e.day == n.day &&
+                    !(e.endTime <= n.startTime || n.endTime <= e.startTime)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    fun backtrack(
+        groupedList: List<List<GroupedSection>>,
+        index: Int,
+        currentSchedule: MutableList<GroupedSection>,
+        accumulatedSchedules: MutableList<ScheduleEntry>
+    ): List<GroupedSection>? {
+        if (index == groupedList.size) return currentSchedule.toList()
+
+        for (section in groupedList[index]) {
+            if (!hasConflict(accumulatedSchedules, section.schedules)) {
+                currentSchedule.add(section)
+                accumulatedSchedules.addAll(section.schedules)
+                val result = backtrack(groupedList, index + 1, currentSchedule, accumulatedSchedules)
+                if (result != null) return result
+                currentSchedule.removeAt(currentSchedule.size - 1)
+                accumulatedSchedules.removeAll(section.schedules)
+            }
+        }
+
+        return null
+    }
+
+    return backtrack(groupedSections.values.toList(), 0, mutableListOf(), mutableListOf())
+}
+
+
+@Composable
+fun AvailableGroupedSection(
+    section: GroupedSection,
+    isSelected: Boolean,
+    onToggleSelect: (GroupedSection) -> Unit,
+    onSectionConfirmed: (GroupedSection) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                else MaterialTheme.colorScheme.surface,
+                RoundedCornerShape(4.dp)
+            )
+            .border(
+                1.dp,
+                if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+                RoundedCornerShape(4.dp)
+            )
+            .padding(8.dp)
+    ) {
+        Text(
+            text = "${section.courseCode} - ${section.courseName}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "Section: ${section.sectionCode}",
+            style = MaterialTheme.typography.bodySmall
+        )
+        section.schedules
+            .groupBy { it.day }
+            .forEach { (day, times) ->
+                val mergedRanges = times.mapNotNull {
+                    try {
+                        val start = LocalTime.parse(it.startTime, timeFormatter)
+                        val end = LocalTime.parse(it.endTime, timeFormatter)
+                        start to end
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        null
+                    }
+                }.sortedBy { it.first }
+                    .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
+                        if (acc.isEmpty()) {
+                            acc.add(current)
+                        } else {
+                            val last = acc.last()
+                            if (!current.first.isAfter(last.second)) {
+                                acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
+                            } else {
+                                acc.add(current)
+                            }
+                        }
+                        acc
+                    }
+
+                val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
+
+                val timeRanges = mergedRanges.joinToString(", ") {
+                    "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
+                }
+
+                Text(
+                    text = "$day: $timeRanges",
+                    style = MaterialTheme.typography.labelSmall
+                )
+
+            }
+
+
+        Button(
+            onClick = {
+                if (isSelected) {
+                    onToggleSelect(section)
+                } else {
+                    showDialog = true
+                }
+            },
+            modifier = Modifier.padding(top = 8.dp),
+            shape = RoundedCornerShape(4.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant
+                else MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text(if (isSelected) "Deselect" else "Select")
+        }
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Confirm Selection") },
+            text = {
+                Text("Are you sure you want to select this section?\n\n${section.courseCode} (${section.sectionCode})")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onToggleSelect(section)
+                    onSectionConfirmed(section)
+                    showDialog = false
+                }) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
