@@ -62,8 +62,16 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.RadioButton
+import io.ktor.http.contentType
 
-const val serverURL = "http://192.168.100.9/student_management_system/REST/"
+
+const val serverURL = "http://192.168.10.1/student_management_system/REST/"
 
 @Serializable
 data class Course(
@@ -73,6 +81,7 @@ data class Course(
     @SerialName("CourseUnits") val courseUnits: String
 )
 
+// This 'EnlistedCourse' is now confirmed as correct by you, used for sectioning with schedule details
 @Serializable
 data class EnlistedCourse(
     @SerialName("CourseID") val courseId: String,
@@ -113,13 +122,56 @@ data class CourseSearchResponse(
 data class CourseSectionSearchResponse(
     val status: String,
     val message: String? = null,
-    val data: List<EnlistedCourse>? = null
+    val data: List<EnlistedCourse>? = null // This now correctly points to the first EnlistedCourse
 )
 
 @Serializable
 data class EnrollmentResponse(
     val status: String,
     val message: String
+)
+
+// FIX: This 'EnlistedCourse' was a duplicate. It has been renamed to FinalizationEnlistedCourse.
+@Serializable
+data class FinalizationEnlistedCourse( // RENAMED THIS
+    val CourseID: Int,
+    val CourseName: String,
+    val CourseCode: String,
+    val CourseUnits: Int,
+    val EnlistmentID: Int,
+    val SectionID: Int?,
+    val SectionCODE: String?,
+    val Room: String?,
+    val Capacity: Int?,
+    val CurrentEnrolled: Int?,
+    val InstructorFirstName: String?,
+    val InstructorLastName: String?
+)
+
+// FIX: Updated to use FinalizationEnlistedCourse for the courses list
+@Serializable
+data class StudentFinalizationDataResponse(
+    val status: String,
+    val courses: List<FinalizationEnlistedCourse>? = null, // UPDATED HERE
+    val term: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class FinalizeEnrollmentRequest(
+    val student_id: String,
+    val enlistment_id: Int,
+    val section_id: Int,
+    val payment_type: String,
+    val term: String,
+    val status: String
+)
+
+@Serializable
+data class FinalizeEnrollmentResponse(
+    val status: String,
+    val message: String? = null,
+    val enrollment_id: Int? = null
 )
 
 fun Context.toast(message: CharSequence) {
@@ -170,18 +222,16 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     }
 
     LaunchedEffect(selectedTabIndex, searchCourseQuery, selectedCourses.size) {
+        fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
+            enlistmentIdState.value = fetchedId
+        }
         if (selectedTabIndex == 0) {
             fetchCourses(context, httpClient, searchCourseQuery) { updatedList ->
                 coursesList = updatedList
             }
         }
         else if (selectedTabIndex == 1) {
-
-            fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
-                enlistmentIdState.value = fetchedId
-            }
-
-            fetchCourseSections(context, httpClient, searchCourseQuery) { updatedList ->
+            fetchCourseSections(context, httpClient, currentStudentId) { updatedList ->
                 enlistedCourses = updatedList
             }
         }
@@ -219,7 +269,8 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                     Column(
                         modifier = Modifier
                             .padding(16.dp)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -616,26 +667,247 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
                 }
                 2 -> {
+                    val finalizeEnlistedCourses = remember { mutableStateOf<List<FinalizationEnlistedCourse>>(emptyList()) }
+                    var finalizeStudentTerm by remember { mutableStateOf("Loading...") }
+                    val finalizePaymentTypes = listOf("Installment 1", "Installment 2", "Full Payment")
+                    var finalizeSelectedPaymentType by remember { mutableStateOf(finalizePaymentTypes[0]) }
+
+                    val finalizeEnrollmentStatuses = listOf("Not Paid", "Paid")
+                    var finalizeSelectedEnrollmentStatus by remember { mutableStateOf(finalizeEnrollmentStatuses[0]) }
+
+                    var finalizeIsLoading by remember { mutableStateOf(true) }
+                    var finalizeErrorMessage by remember { mutableStateOf<String?>(null) }
+                    var finalizeIsSubmitting by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(currentStudentId) {
+                        finalizeIsLoading = true
+                        finalizeErrorMessage = null
+                        var rawResponseContent: String? = null // Added for detailed error reporting
+                        try {
+                            val response = httpClient.get("${serverURL}get_studentFinalization.php?student_id=$currentStudentId")
+                            rawResponseContent = response.bodyAsText() // Store the raw text
+                            val parsedData = Json.decodeFromString<StudentFinalizationDataResponse>(rawResponseContent)
+
+                            if (parsedData.status == "success") {
+                                finalizeEnlistedCourses.value = parsedData.courses?.filter { it.SectionID != null } ?: emptyList()
+                                finalizeStudentTerm = parsedData.term ?: "N/A"
+
+                                if (finalizeEnlistedCourses.value.isEmpty()) {
+                                    finalizeErrorMessage = "You have no enlisted and sectioned courses to finalize."
+                                }
+                                if (parsedData.term == null || parsedData.term.isNullOrBlank()) {
+                                    finalizeErrorMessage = (finalizeErrorMessage ?: "") + " Could not retrieve student's current term."
+                                }
+                            } else {
+                                finalizeErrorMessage = "Failed to load data: ${parsedData.message}"
+                            }
+
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            // Enhanced error message
+                            finalizeErrorMessage = "Network or parsing error: ${e.localizedMessage ?: "Unknown error"}. " +
+                                    "Raw response from get_studentFinalization.php: '${rawResponseContent ?: "N/A"}'"
+                        } finally {
+                            finalizeIsLoading = false
+                        }
+                    }
+
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "Finalize Enrollment",
                             style = MaterialTheme.typography.headlineSmall,
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
-                        Text(
-                            text = "Summary of selected courses and finalization options will go here.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(32.dp))
-                        Button(onClick = { /* Handle finalization */ }) {
-                            Text("Submit Enrollment")
+
+                        if (finalizeIsLoading) {
+                            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                            Text("Loading enrollment details...")
+                        } else if (finalizeErrorMessage != null) {
+                            Text(
+                                text = finalizeErrorMessage!!,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "Enlisted Courses:",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            if (finalizeEnlistedCourses.value.isNotEmpty()) {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .heightIn(max = 250.dp)
+                                        .fillMaxWidth()
+                                        .padding(bottom = 16.dp)
+                                ) {
+                                    items(finalizeEnlistedCourses.value) { course ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            elevation = CardDefaults.cardElevation(2.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Text(text = "${course.CourseName} (${course.CourseCode})", style = MaterialTheme.typography.bodyLarge)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(text = "Units: ${course.CourseUnits}", style = MaterialTheme.typography.bodySmall)
+                                                Text(text = "Section: ${course.SectionCODE ?: "N/A"} (Room: ${course.Room ?: "N/A"})", style = MaterialTheme.typography.bodySmall)
+                                                Text(text = "Instructor: ${course.InstructorFirstName ?: ""} ${course.InstructorLastName ?: ""}", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "No courses found for finalization. Please ensure you have enlisted and sectioned your courses.",
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.padding(vertical = 16.dp)
+                                )
+                            }
+
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                Text(text = "Payment Type:", style = MaterialTheme.typography.titleSmall)
+                                Row(modifier = Modifier.selectableGroup()) {
+                                    finalizePaymentTypes.forEach { type ->
+                                        Row(
+                                            Modifier
+                                                .height(40.dp)
+                                                .selectable(
+                                                    selected = (finalizeSelectedPaymentType == type),
+                                                    onClick = { finalizeSelectedPaymentType = type }
+                                                )
+                                                .padding(horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = (finalizeSelectedPaymentType == type),
+                                                onClick = null
+                                            )
+                                            Text(
+                                                text = type,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "Term: $finalizeStudentTerm",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                Text(text = "Enrollment Status:", style = MaterialTheme.typography.titleSmall)
+                                Row(modifier = Modifier.selectableGroup()) {
+                                    finalizeEnrollmentStatuses.forEach { status ->
+                                        Row(
+                                            Modifier
+                                                .height(40.dp)
+                                                .selectable(
+                                                    selected = (finalizeSelectedEnrollmentStatus == status),
+                                                    onClick = { finalizeSelectedEnrollmentStatus = status }
+                                                )
+                                                .padding(horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = (finalizeSelectedEnrollmentStatus == status),
+                                                onClick = null
+                                            )
+                                            Text(
+                                                text = status,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Button(
+                                onClick = {
+                                    if (finalizeEnlistedCourses.value.isEmpty() || finalizeIsSubmitting) {
+                                        context.toast("No courses to finalize or already submitting.")
+                                        return@Button
+                                    }
+                                    if (finalizeStudentTerm == "Loading..." || finalizeStudentTerm == "N/A" || finalizeStudentTerm.isBlank()) {
+                                        context.toast("Please wait for term to load or fix term loading issue before finalizing.")
+                                        return@Button
+                                    }
+
+                                    finalizeIsSubmitting = true
+                                    coroutineScope.launch {
+                                        var allSuccessful = true
+                                        for (course in finalizeEnlistedCourses.value) {
+                                            val sectionId = course.SectionID
+
+                                            if (sectionId == null) {
+                                                context.toast("Skipping ${course.CourseName}: No section assigned. Cannot finalize.")
+                                                allSuccessful = false
+                                                continue
+                                            }
+
+                                            var responseBody: String? = null
+                                            try {
+                                                val response = httpClient.post("${serverURL}add_finalization.php") {
+                                                    // Changed to send form-urlencoded data
+                                                    contentType(io.ktor.http.ContentType.Application.FormUrlEncoded)
+                                                    setBody(
+                                                        io.ktor.client.request.forms.FormDataContent(
+                                                            io.ktor.http.Parameters.build {
+                                                                append("student_id", currentStudentId)
+                                                                append("enlistment_id", course.EnlistmentID.toString())
+                                                                append("section_id", sectionId.toString())
+                                                                append("payment_type", finalizeSelectedPaymentType)
+                                                                append("term", finalizeStudentTerm)
+                                                                append("status", finalizeSelectedEnrollmentStatus)
+                                                            }
+                                                        )
+                                                    )
+                                                }
+                                                responseBody = response.bodyAsText()
+                                                // Still expecting JSON response from PHP
+                                                val finalizeResponse = Json.decodeFromString<FinalizeEnrollmentResponse>(responseBody)
+
+                                                if (finalizeResponse.status == "success") {
+                                                    context.toast("Successfully finalized: ${course.CourseName}")
+                                                } else {
+                                                    context.toast("Failed to finalize ${course.CourseName}: ${finalizeResponse.message}")
+                                                    allSuccessful = false
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                                context.toast("Error finalizing ${course.CourseName}: ${e.localizedMessage ?: "Unknown error"}. Raw response from add_finalization.php: '${responseBody ?: "N/A"}'")
+                                                allSuccessful = false
+                                            }
+                                        }
+                                        finalizeIsSubmitting = false
+                                        if (allSuccessful) {
+                                            context.toast("All selected courses finalized!")
+                                            selectedTabIndex = 0
+                                        } else {
+                                            context.toast("Some courses failed to finalize. Check details.")
+                                        }
+                                    }
+                                },
+                                enabled = !finalizeIsLoading && !finalizeIsSubmitting && finalizeEnlistedCourses.value.isNotEmpty() && finalizeStudentTerm != "Loading..." && !finalizeStudentTerm.isBlank()
+                            ) {
+                                Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment")
+                            }
                         }
                     }
                 }
@@ -703,98 +975,6 @@ fun AvailableCourseItem(course: Course, onSelect: (Course) -> Unit) {
 }
 
 @Composable
-fun AvailableCourseSections(
-    course: EnlistedCourse,
-    isSelected: Boolean,
-    onToggleSelect: (EnlistedCourse) -> Unit,
-    onSectionConfirmed: (EnlistedCourse) -> Unit
-) {
-    var showDialog by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                else MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(4.dp)
-            )
-            .border(
-                1.dp,
-                if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(4.dp)
-            )
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "${course.courseCode} - ${course.courseName}\n" +
-                    "Section: ${course.sectionCode}\n" +
-                    "${course.day}: ${course.startTime} - ${course.endTime}",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f),
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
-
-        Button(
-            onClick = {
-                if (isSelected) {
-                    // Immediately deselect without confirmation
-                    onToggleSelect(course)
-                } else {
-                    // Ask confirmation before selecting
-                    showDialog = true
-                }
-            },
-            modifier = Modifier.padding(start = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSelected)
-                    MaterialTheme.colorScheme.surfaceVariant
-                else
-                    MaterialTheme.colorScheme.primary,
-                contentColor = if (isSelected)
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                else
-                    MaterialTheme.colorScheme.onPrimary
-            ),
-            shape = RoundedCornerShape(4.dp)
-        ) {
-            Text(if (isSelected) "Deselect" else "Select")
-        }
-    }
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            title = { Text("Confirm Selection") },
-            text = {
-                Text("Are you sure you want to select this section?\n\n${course.courseCode} (${course.sectionCode}) | ${course.startTime} - ${course.endTime}")
-            },
-            confirmButton = {
-                Button(onClick = {
-                    onToggleSelect(course)
-                    onSectionConfirmed(course)
-                    showDialog = false
-                }) {
-                    Text("Confirm")
-                }
-            },
-            dismissButton = {
-                Button(onClick = {
-                    showDialog = false
-                }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-
-@Composable
 fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
     Row(
         modifier = Modifier
@@ -838,38 +1018,61 @@ private suspend fun processSelectedCoursesForAction(
     httpClient: HttpClient,
     studentId: String,
     selectedCourses: MutableList<Course>,
-    isAddAction: Boolean
+    isAddAction: Boolean // This parameter determines whether to add or remove
 ) {
     if (selectedCourses.isEmpty()) {
         context.toast("Please select at least one course for action.")
         return
     }
+
     val coursesToProcess = selectedCourses.toList()
-    var anyActionFailed = false
     val successfullyProcessedCourses = mutableListOf<Course>()
+    var enlistmentId: String? = null // Relevant only for the 'add' action to potentially reuse an enlistment ID
+
+    val actionDescription = if (isAddAction) "enrollment" else "removal"
+    val successMessageVerb = if (isAddAction) "enrolled" else "removed"
+
     for (course in coursesToProcess) {
-        println("${if (isAddAction) "Enrolling" else "Removing"}: StudentID = ${studentId}, CourseID = ${course.courseId}")
-        val success = if (isAddAction) {
-            ktorAddEnrollment(context, httpClient, studentId, course.courseId)
+        val success: Boolean
+
+        if (isAddAction) {
+            // Logic for adding courses
+            val (addSuccess, returnedId) = ktorAddEnrollment(
+                context = context,
+                httpClient = httpClient,
+                studentId = studentId,
+                courseId = course.courseId,
+                currentEnlistmentId = enlistmentId
+            )
+            success = addSuccess
+            if (success && enlistmentId == null && returnedId != null) {
+                // If this is the first successful addition, store the returned enlistment ID
+                // to potentially reuse for subsequent course additions within the same batch.
+                enlistmentId = returnedId
+            }
         } else {
-            ktorRemoveEnrollment(context, httpClient, studentId, course.courseId)
+            // Logic for removing courses
+            success = ktorRemoveEnrollment(
+                context = context,
+                httpClient = httpClient,
+                studentId = studentId,
+                courseId = course.courseId
+            )
         }
+
         if (success) {
             successfullyProcessedCourses.add(course)
         } else {
-            anyActionFailed = true
+            // If any action fails, display a toast and stop processing the rest of the courses
+            context.toast("Failed to $actionDescription for ${course.courseCode}.")
+            return // Exit the function immediately on the first failure, consistent with original break behavior
         }
     }
-    selectedCourses.removeAll(successfullyProcessedCourses)
-    val actionType = if (isAddAction) "enrolled" else "removed"
-    val verb = if (isAddAction) "enrolled" else "removed"
-    if (!anyActionFailed && successfullyProcessedCourses.isNotEmpty()) {
-        context.toast("All selected courses $actionType successfully!")
-    } else if (anyActionFailed && successfullyProcessedCourses.isNotEmpty()) {
-        context.toast("Some courses ${verb}, but others failed.")
-    } else {
-        context.toast("No courses were processed for action.")
-    }
+
+    // If the code reaches here, it means all courses in the `coursesToProcess` list were successfully processed.
+    selectedCourses.removeAll(successfullyProcessedCourses) // Update the original list of selected courses
+
+    context.toast("All selected courses ${successMessageVerb} successfully!")
 }
 
 private suspend fun fetchCourses(context: Context, httpClient: HttpClient, query: String, onCoursesFetched: (List<Course>) -> Unit) {
@@ -898,9 +1101,9 @@ private suspend fun fetchCourses(context: Context, httpClient: HttpClient, query
     }
 }
 
-private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient, query: String, onCoursesFetched: (List<EnlistedCourse>) -> Unit) {
+private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient, studentID: String, onCoursesFetched: (List<EnlistedCourse>) -> Unit) {
     try {
-        val fullUrl = "${serverURL}get_courseEnlisted.php?query=${query}"
+        val fullUrl = "${serverURL}get_courseEnlisted.php?StudentID=${studentID}"
         println("Fetching courses from: $fullUrl")
         val response: HttpResponse = httpClient.get(fullUrl)
         val responseBodyString = response.bodyAsText()
@@ -924,30 +1127,35 @@ private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient
     }
 }
 
-private suspend fun ktorAddEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
-    try {
-        if (studentId.isBlank() || courseId.isBlank()) {
-            context.toast("Missing student or course ID.")
-            return false
+suspend fun ktorAddEnrollment(
+    context: Context,
+    httpClient: HttpClient,
+    studentId: String,
+    courseId: String,
+    currentEnlistmentId: String?
+): Pair<Boolean, String?> {
+    return try {
+        val urlBuilder = StringBuilder("${serverURL}add_enlistment.php?student_id=$studentId&course_id=$courseId")
+        if (currentEnlistmentId != null) {
+            urlBuilder.append("&enlistment_id=$currentEnlistmentId")
         }
-        val fullUrl = "${serverURL}add_enlistment.php?student_id=${studentId}&course_id=${courseId}"
-        println("Requesting: $fullUrl")
-        val response = httpClient.get(fullUrl)
-        val responseBodyString = response.bodyAsText()
-        println("Response from server: ${response.status} - $responseBodyString")
-        val enrollmentResponse = Json.decodeFromString<EnrollmentResponse>(responseBodyString)
-        if (enrollmentResponse.status == "success") {
-            return true
-        } else {
-            context.toast("Failed to enroll $courseId: ${enrollmentResponse.message}")
-            return false
-        }
+
+        val response = httpClient.get(urlBuilder.toString())
+        val responseText = response.bodyAsText()
+        println("Server Response: $responseText")
+
+        val json = Json.parseToJsonElement(responseText).jsonObject
+        val success = json["status"]?.jsonPrimitive?.content == "success"
+        val newEnlistmentId = json["enlistment_id"]?.jsonPrimitive?.content
+
+        Pair(success, newEnlistmentId)
     } catch (e: Exception) {
         e.printStackTrace()
-        context.toast("Enrollment error for $courseId: ${e.localizedMessage ?: "Unknown"}")
-        return false
+        context.toast("Enrollment failed: ${e.localizedMessage}")
+        Pair(false, null)
     }
 }
+
 
 private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
     try {
