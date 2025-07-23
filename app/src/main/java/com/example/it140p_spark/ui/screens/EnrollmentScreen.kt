@@ -170,18 +170,16 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     }
 
     LaunchedEffect(selectedTabIndex, searchCourseQuery, selectedCourses.size) {
+        fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
+            enlistmentIdState.value = fetchedId
+        }
         if (selectedTabIndex == 0) {
             fetchCourses(context, httpClient, searchCourseQuery) { updatedList ->
                 coursesList = updatedList
             }
         }
         else if (selectedTabIndex == 1) {
-
-            fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
-                enlistmentIdState.value = fetchedId
-            }
-
-            fetchCourseSections(context, httpClient, searchCourseQuery) { updatedList ->
+            fetchCourseSections(context, httpClient, currentStudentId) { updatedList ->
                 enlistedCourses = updatedList
             }
         }
@@ -219,7 +217,8 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                     Column(
                         modifier = Modifier
                             .padding(16.dp)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -703,98 +702,6 @@ fun AvailableCourseItem(course: Course, onSelect: (Course) -> Unit) {
 }
 
 @Composable
-fun AvailableCourseSections(
-    course: EnlistedCourse,
-    isSelected: Boolean,
-    onToggleSelect: (EnlistedCourse) -> Unit,
-    onSectionConfirmed: (EnlistedCourse) -> Unit
-) {
-    var showDialog by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                else MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(4.dp)
-            )
-            .border(
-                1.dp,
-                if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(4.dp)
-            )
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "${course.courseCode} - ${course.courseName}\n" +
-                    "Section: ${course.sectionCode}\n" +
-                    "${course.day}: ${course.startTime} - ${course.endTime}",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f),
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
-
-        Button(
-            onClick = {
-                if (isSelected) {
-                    // Immediately deselect without confirmation
-                    onToggleSelect(course)
-                } else {
-                    // Ask confirmation before selecting
-                    showDialog = true
-                }
-            },
-            modifier = Modifier.padding(start = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSelected)
-                    MaterialTheme.colorScheme.surfaceVariant
-                else
-                    MaterialTheme.colorScheme.primary,
-                contentColor = if (isSelected)
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                else
-                    MaterialTheme.colorScheme.onPrimary
-            ),
-            shape = RoundedCornerShape(4.dp)
-        ) {
-            Text(if (isSelected) "Deselect" else "Select")
-        }
-    }
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            title = { Text("Confirm Selection") },
-            text = {
-                Text("Are you sure you want to select this section?\n\n${course.courseCode} (${course.sectionCode}) | ${course.startTime} - ${course.endTime}")
-            },
-            confirmButton = {
-                Button(onClick = {
-                    onToggleSelect(course)
-                    onSectionConfirmed(course)
-                    showDialog = false
-                }) {
-                    Text("Confirm")
-                }
-            },
-            dismissButton = {
-                Button(onClick = {
-                    showDialog = false
-                }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-
-@Composable
 fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
     Row(
         modifier = Modifier
@@ -847,19 +754,27 @@ private suspend fun processSelectedCoursesForAction(
     val coursesToProcess = selectedCourses.toList()
     var anyActionFailed = false
     val successfullyProcessedCourses = mutableListOf<Course>()
+    var enlistmentId: String? = null
+
     for (course in coursesToProcess) {
-        println("${if (isAddAction) "Enrolling" else "Removing"}: StudentID = ${studentId}, CourseID = ${course.courseId}")
-        val success = if (isAddAction) {
-            ktorAddEnrollment(context, httpClient, studentId, course.courseId)
-        } else {
-            ktorRemoveEnrollment(context, httpClient, studentId, course.courseId)
-        }
+        val (success, returnedId) = ktorAddEnrollment(
+            context = context,
+            httpClient = httpClient,
+            studentId = studentId,
+            courseId = course.courseId,
+            currentEnlistmentId = enlistmentId
+        )
+
         if (success) {
-            successfullyProcessedCourses.add(course)
+            if (enlistmentId == null && returnedId != null) {
+                enlistmentId = returnedId // Store the first enlistment ID
+            }
         } else {
-            anyActionFailed = true
+            context.toast("Enrollment failed for ${course.courseCode}")
+            break // Stop if one fails
         }
     }
+
     selectedCourses.removeAll(successfullyProcessedCourses)
     val actionType = if (isAddAction) "enrolled" else "removed"
     val verb = if (isAddAction) "enrolled" else "removed"
@@ -898,9 +813,9 @@ private suspend fun fetchCourses(context: Context, httpClient: HttpClient, query
     }
 }
 
-private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient, query: String, onCoursesFetched: (List<EnlistedCourse>) -> Unit) {
+private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient, studentID: String, onCoursesFetched: (List<EnlistedCourse>) -> Unit) {
     try {
-        val fullUrl = "${serverURL}get_courseEnlisted.php?query=${query}"
+        val fullUrl = "${serverURL}get_courseEnlisted.php?StudentID=${studentID}"
         println("Fetching courses from: $fullUrl")
         val response: HttpResponse = httpClient.get(fullUrl)
         val responseBodyString = response.bodyAsText()
@@ -924,30 +839,35 @@ private suspend fun fetchCourseSections(context: Context, httpClient: HttpClient
     }
 }
 
-private suspend fun ktorAddEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
-    try {
-        if (studentId.isBlank() || courseId.isBlank()) {
-            context.toast("Missing student or course ID.")
-            return false
+suspend fun ktorAddEnrollment(
+    context: Context,
+    httpClient: HttpClient,
+    studentId: String,
+    courseId: String,
+    currentEnlistmentId: String?
+): Pair<Boolean, String?> {
+    return try {
+        val urlBuilder = StringBuilder("${serverURL}add_enlistment.php?student_id=$studentId&course_id=$courseId")
+        if (currentEnlistmentId != null) {
+            urlBuilder.append("&enlistment_id=$currentEnlistmentId")
         }
-        val fullUrl = "${serverURL}add_enlistment.php?student_id=${studentId}&course_id=${courseId}"
-        println("Requesting: $fullUrl")
-        val response = httpClient.get(fullUrl)
-        val responseBodyString = response.bodyAsText()
-        println("Response from server: ${response.status} - $responseBodyString")
-        val enrollmentResponse = Json.decodeFromString<EnrollmentResponse>(responseBodyString)
-        if (enrollmentResponse.status == "success") {
-            return true
-        } else {
-            context.toast("Failed to enroll $courseId: ${enrollmentResponse.message}")
-            return false
-        }
+
+        val response = httpClient.get(urlBuilder.toString())
+        val responseText = response.bodyAsText()
+        println("Server Response: $responseText")
+
+        val json = Json.parseToJsonElement(responseText).jsonObject
+        val success = json["status"]?.jsonPrimitive?.content == "success"
+        val newEnlistmentId = json["enlistment_id"]?.jsonPrimitive?.content
+
+        Pair(success, newEnlistmentId)
     } catch (e: Exception) {
         e.printStackTrace()
-        context.toast("Enrollment error for $courseId: ${e.localizedMessage ?: "Unknown"}")
-        return false
+        context.toast("Enrollment failed: ${e.localizedMessage}")
+        Pair(false, null)
     }
 }
+
 
 private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
     try {
