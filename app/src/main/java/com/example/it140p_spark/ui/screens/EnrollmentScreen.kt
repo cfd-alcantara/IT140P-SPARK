@@ -69,7 +69,9 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.RadioButton
 import io.ktor.http.contentType
-
+import io.ktor.client.request.forms.FormDataContent // NEW
+import io.ktor.http.Parameters // NEW
+import java.time.LocalDate // NEW
 
 const val serverURL = "http://192.168.10.1/student_management_system/REST/"
 
@@ -81,7 +83,6 @@ data class Course(
     @SerialName("CourseUnits") val courseUnits: String
 )
 
-// This 'EnlistedCourse' is now confirmed as correct by you, used for sectioning with schedule details
 @Serializable
 data class EnlistedCourse(
     @SerialName("CourseID") val courseId: String,
@@ -122,7 +123,7 @@ data class CourseSearchResponse(
 data class CourseSectionSearchResponse(
     val status: String,
     val message: String? = null,
-    val data: List<EnlistedCourse>? = null // This now correctly points to the first EnlistedCourse
+    val data: List<EnlistedCourse>? = null
 )
 
 @Serializable
@@ -131,9 +132,9 @@ data class EnrollmentResponse(
     val message: String
 )
 
-// FIX: This 'EnlistedCourse' was a duplicate. It has been renamed to FinalizationEnlistedCourse.
 @Serializable
-data class FinalizationEnlistedCourse( // RENAMED THIS
+data class FinalizationEnlistedCourse( // NEW
+    val CourseEnlistedID: Int,
     val CourseID: Int,
     val CourseName: String,
     val CourseCode: String,
@@ -148,27 +149,16 @@ data class FinalizationEnlistedCourse( // RENAMED THIS
     val InstructorLastName: String?
 )
 
-// FIX: Updated to use FinalizationEnlistedCourse for the courses list
 @Serializable
-data class StudentFinalizationDataResponse(
+data class StudentFinalizationDataResponse( // NEW
     val status: String,
-    val courses: List<FinalizationEnlistedCourse>? = null, // UPDATED HERE
+    val courses: List<FinalizationEnlistedCourse>? = null,
     val term: String? = null,
     val message: String? = null
 )
 
 @Serializable
-data class FinalizeEnrollmentRequest(
-    val student_id: String,
-    val enlistment_id: Int,
-    val section_id: Int,
-    val payment_type: String,
-    val term: String,
-    val status: String
-)
-
-@Serializable
-data class FinalizeEnrollmentResponse(
+data class FinalizeEnrollmentResponse( // NEW
     val status: String,
     val message: String? = null,
     val enrollment_id: Int? = null
@@ -186,6 +176,9 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     val currentStudentId = studentId
     val enlistmentIdState = remember { mutableStateOf<String?>(null) }
     val enlistmentId = enlistmentIdState.value
+
+    //Finalize
+    val onTabSelected: (Int) -> Unit
 
     //Enlistment
     val selectedCourses = remember { mutableStateListOf<Course>() }
@@ -665,14 +658,14 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         )
                     }
 
-                }
+                } // NEW
                 2 -> {
                     val finalizeEnlistedCourses = remember { mutableStateOf<List<FinalizationEnlistedCourse>>(emptyList()) }
                     var finalizeStudentTerm by remember { mutableStateOf("Loading...") }
                     val finalizePaymentTypes = listOf("Installment 1", "Installment 2", "Full Payment")
                     var finalizeSelectedPaymentType by remember { mutableStateOf(finalizePaymentTypes[0]) }
 
-                    val finalizeEnrollmentStatuses = listOf("Not Paid", "Paid")
+                    val finalizeEnrollmentStatuses = listOf("Not Paid")
                     var finalizeSelectedEnrollmentStatus by remember { mutableStateOf(finalizeEnrollmentStatuses[0]) }
 
                     var finalizeIsLoading by remember { mutableStateOf(true) }
@@ -682,10 +675,10 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                     LaunchedEffect(currentStudentId) {
                         finalizeIsLoading = true
                         finalizeErrorMessage = null
-                        var rawResponseContent: String? = null // Added for detailed error reporting
+                        var rawResponseContent: String? = null
                         try {
                             val response = httpClient.get("${serverURL}get_studentFinalization.php?student_id=$currentStudentId")
-                            rawResponseContent = response.bodyAsText() // Store the raw text
+                            rawResponseContent = response.bodyAsText()
                             val parsedData = Json.decodeFromString<StudentFinalizationDataResponse>(rawResponseContent)
 
                             if (parsedData.status == "success") {
@@ -696,16 +689,17 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                     finalizeErrorMessage = "You have no enlisted and sectioned courses to finalize."
                                 }
                                 if (parsedData.term == null || parsedData.term.isNullOrBlank()) {
-                                    finalizeErrorMessage = (finalizeErrorMessage ?: "") + " Could not retrieve student's current term."
+                                    val currentMessage = finalizeErrorMessage ?: ""
+                                    finalizeErrorMessage = currentMessage + (if (currentMessage.isNotEmpty()) ". " else "") + "Could not retrieve student's current term."
+                                    if (finalizeErrorMessage?.trim() == "") finalizeErrorMessage = "Could not retrieve student's current term."
                                 }
                             } else {
-                                finalizeErrorMessage = "Failed to load data: ${parsedData.message}"
+                                finalizeErrorMessage = "Failed to load data: ${parsedData.message ?: "Unknown error"}"
                             }
 
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            // Enhanced error message
-                            finalizeErrorMessage = "Network or parsing error: ${e.localizedMessage ?: "Unknown error"}. " +
+                            finalizeErrorMessage = "Network or parsing error loading courses: ${e.localizedMessage ?: "Unknown error"}. " +
                                     "Raw response from get_studentFinalization.php: '${rawResponseContent ?: "N/A"}'"
                         } finally {
                             finalizeIsLoading = false
@@ -817,7 +811,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                                 .height(40.dp)
                                                 .selectable(
                                                     selected = (finalizeSelectedEnrollmentStatus == status),
-                                                    onClick = { finalizeSelectedEnrollmentStatus = status }
+                                                    onClick = { /* status is fixed */ }
                                                 )
                                                 .padding(horizontal = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
@@ -849,62 +843,60 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                         return@Button
                                     }
 
+                                    val unsectionedCourses = finalizeEnlistedCourses.value.filter { it.SectionID == null }
+                                    if (unsectionedCourses.isNotEmpty()) {
+                                        context.toast("Cannot finalize. Some enlisted courses are not yet sectioned.")
+                                        return@Button
+                                    }
+
+                                    val enlistmentIdToFinalize = finalizeEnlistedCourses.value.firstOrNull()?.EnlistmentID
+                                    if (enlistmentIdToFinalize == null) {
+                                        context.toast("Could not find Enlistment ID for finalization.")
+                                        return@Button
+                                    }
+
                                     finalizeIsSubmitting = true
                                     coroutineScope.launch {
-                                        var allSuccessful = true
-                                        for (course in finalizeEnlistedCourses.value) {
-                                            val sectionId = course.SectionID
+                                        var responseBody: String? = null
+                                        try {
+                                            val enrollmentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-                                            if (sectionId == null) {
-                                                context.toast("Skipping ${course.CourseName}: No section assigned. Cannot finalize.")
-                                                allSuccessful = false
-                                                continue
-                                            }
-
-                                            var responseBody: String? = null
-                                            try {
-                                                val response = httpClient.post("${serverURL}add_finalization.php") {
-                                                    // Changed to send form-urlencoded data
-                                                    contentType(io.ktor.http.ContentType.Application.FormUrlEncoded)
-                                                    setBody(
-                                                        io.ktor.client.request.forms.FormDataContent(
-                                                            io.ktor.http.Parameters.build {
-                                                                append("student_id", currentStudentId)
-                                                                append("enlistment_id", course.EnlistmentID.toString())
-                                                                append("section_id", sectionId.toString())
-                                                                append("payment_type", finalizeSelectedPaymentType)
-                                                                append("term", finalizeStudentTerm)
-                                                                append("status", finalizeSelectedEnrollmentStatus)
-                                                            }
-                                                        )
+                                            val response = httpClient.post("${serverURL}add_finalization.php") {
+                                                contentType(io.ktor.http.ContentType.Application.FormUrlEncoded)
+                                                setBody(
+                                                    FormDataContent(
+                                                        Parameters.build {
+                                                            append("student_id", currentStudentId)
+                                                            append("enlistment_id", enlistmentIdToFinalize.toString())
+                                                            append("payment_type", finalizeSelectedPaymentType)
+                                                            append("term", finalizeStudentTerm)
+                                                            append("enrollment_date", enrollmentDate)
+                                                            append("status", finalizeSelectedEnrollmentStatus)
+                                                        }
                                                     )
-                                                }
-                                                responseBody = response.bodyAsText()
-                                                // Still expecting JSON response from PHP
-                                                val finalizeResponse = Json.decodeFromString<FinalizeEnrollmentResponse>(responseBody)
-
-                                                if (finalizeResponse.status == "success") {
-                                                    context.toast("Successfully finalized: ${course.CourseName}")
-                                                } else {
-                                                    context.toast("Failed to finalize ${course.CourseName}: ${finalizeResponse.message}")
-                                                    allSuccessful = false
-                                                }
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                                context.toast("Error finalizing ${course.CourseName}: ${e.localizedMessage ?: "Unknown error"}. Raw response from add_finalization.php: '${responseBody ?: "N/A"}'")
-                                                allSuccessful = false
+                                                )
                                             }
-                                        }
-                                        finalizeIsSubmitting = false
-                                        if (allSuccessful) {
-                                            context.toast("All selected courses finalized!")
-                                            selectedTabIndex = 0
-                                        } else {
-                                            context.toast("Some courses failed to finalize. Check details.")
+                                            responseBody = response.bodyAsText()
+                                            val finalizeResponse = Json.decodeFromString<FinalizeEnrollmentResponse>(responseBody)
+
+                                            if (finalizeResponse.status == "success") {
+                                                context.toast("Enrollment finalized successfully!")
+                                                onTabSelected(0)
+                                            } else {
+                                                context.toast("Failed to finalize enrollment: ${finalizeResponse.message ?: "Unknown error"}")
+                                            }
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                            context.toast("Error during enrollment finalization: ${e.localizedMessage ?: "Unknown error"}. Raw response from add_finalization.php: '${responseBody ?: "N/A"}'")
+                                        } finally {
+                                            finalizeIsSubmitting = false
                                         }
                                     }
                                 },
-                                enabled = !finalizeIsLoading && !finalizeIsSubmitting && finalizeEnlistedCourses.value.isNotEmpty() && finalizeStudentTerm != "Loading..." && !finalizeStudentTerm.isBlank()
+                                enabled = !finalizeIsLoading && !finalizeIsSubmitting &&
+                                        finalizeEnlistedCourses.value.isNotEmpty() &&
+                                        finalizeEnlistedCourses.value.all { it.SectionID != null } &&
+                                        finalizeStudentTerm != "Loading..." && !finalizeStudentTerm.isBlank() 
                             ) {
                                 Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment")
                             }
