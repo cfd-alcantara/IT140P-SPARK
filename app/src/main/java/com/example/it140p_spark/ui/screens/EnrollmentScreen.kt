@@ -88,12 +88,12 @@ data class EnlistedCourse(
     @SerialName("CourseID") val courseId: String,
     @SerialName("CourseName") val courseName: String,
     @SerialName("CourseCode") val courseCode: String,
-    @SerialName("SectionID") val sectionId: String,
-    @SerialName("SectionCode") val sectionCode: String,
+    @SerialName("SectionID") val sectionId: String?,
+    @SerialName("SectionCode") val sectionCode: String?,
     @SerialName("CourseUnits") val courseUnits: String,
-    @SerialName("Day") val day: String,
-    @SerialName("StartTime") val startTime: String,
-    @SerialName("EndTime") val endTime: String
+    @SerialName("Day") val day: String?,
+    @SerialName("StartTime") val startTime: String?,
+    @SerialName("EndTime") val endTime: String?
 )
 
 data class GroupedSection(
@@ -176,9 +176,6 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     val currentStudentId = studentId
     val enlistmentIdState = remember { mutableStateOf<String?>(null) }
     val enlistmentId = enlistmentIdState.value
-
-    //Finalize
-    val onTabSelected: (Int) -> Unit
 
     //Enlistment
     val selectedCourses = remember { mutableStateListOf<Course>() }
@@ -543,9 +540,9 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                                 sectionId = toggled.sectionId,
                                                 sectionCode = toggled.sectionCode,
                                                 courseUnits = toggled.courseUnits,
-                                                day = firstSchedule.day,
-                                                startTime = firstSchedule.startTime,
-                                                endTime = firstSchedule.endTime
+                                                day = firstSchedule?.day,
+                                                startTime = firstSchedule?.startTime,
+                                                endTime = firstSchedule?.endTime
                                             )
                                         )
                                     }
@@ -924,7 +921,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
                                             if (finalizeResponse.status == "success") {
                                                 context.toast("Enrollment finalized successfully!")
-                                                onTabSelected(0)
+                                                selectedTabIndex = 0
                                             } else {
                                                 context.toast("Failed to finalize enrollment: ${finalizeResponse.message ?: "Unknown error"}")
                                             }
