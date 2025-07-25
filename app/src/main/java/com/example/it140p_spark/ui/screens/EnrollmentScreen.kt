@@ -73,7 +73,7 @@ import io.ktor.client.request.forms.FormDataContent // NEW
 import io.ktor.http.Parameters // NEW
 import java.time.LocalDate // NEW
 
-const val serverURL = "http://192.168.18.13/student_management_system/REST/"
+const val serverURL = "http://192.168.100.9/student_management_system/REST/"
 
 @Serializable
 data class Course(
@@ -114,6 +114,13 @@ data class ScheduleEntry(
 
 @Serializable
 data class CourseSearchResponse(
+    val status: String,
+    val message: String? = null,
+    val data: List<Course>? = null
+)
+
+@Serializable
+data class CourseEnlistedSearchResponse(
     val status: String,
     val message: String? = null,
     val data: List<Course>? = null
@@ -235,7 +242,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
             println("Fetched all available courses: ${allFetchedCourses.size} courses.")
 
             // Fetch courses currently enlisted by the student
-            val enlistedCoursesFromBackend = fetchCourseSectionsSuspend(context, httpClient, currentStudentId)
+            val enlistedCoursesFromBackend = fetchCourseEnlistedSuspend(context, httpClient, currentStudentId)
             println("Fetched enlisted courses from backend: ${enlistedCoursesFromBackend.size} courses.")
 
             // Update initialEnrolledCourses (source of truth from backend)
@@ -1206,9 +1213,35 @@ private suspend fun fetchCoursesSuspend(context: Context, httpClient: HttpClient
     }
 }
 
-private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: HttpClient, studentID: String): List<EnlistedCourse> {
+private suspend fun fetchCourseEnlistedSuspend(context: Context, httpClient: HttpClient, studentID: String): List<Course> {
     return try {
         val fullUrl = "${serverURL}get_courseEnlisted.php?StudentID=${studentID}"
+        println("Fetching enlisted courses from: $fullUrl")
+        val response: HttpResponse = httpClient.get(fullUrl)
+        val responseBodyString = response.bodyAsText()
+        println("Raw JSON response for enlisted courses: $responseBodyString")
+        if (response.status.value == 200) {
+            val parsedResponse = Json.decodeFromString<CourseEnlistedSearchResponse>(responseBodyString)
+            if (parsedResponse.status == "success" && parsedResponse.data != null) {
+                parsedResponse.data
+            } else {
+                context.toast("Server reported error (enlisted courses): ${parsedResponse.message ?: "Unknown error"}")
+                emptyList()
+            }
+        } else {
+            context.toast("HTTP Error fetching enlisted courses: ${response.status.value} - ${response.status.description}")
+            emptyList()
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        context.toast("Error fetching enlisted courses: ${e.localizedMessage}")
+        emptyList()
+    }
+}
+
+private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: HttpClient, studentID: String): List<EnlistedCourse> {
+    return try {
+        val fullUrl = "${serverURL}get_courseEnlisted_Schedule.php?StudentID=${studentID}"
         println("Fetching enlisted courses from: $fullUrl")
         val response: HttpResponse = httpClient.get(fullUrl)
         val responseBodyString = response.bodyAsText()
