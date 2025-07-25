@@ -6,15 +6,21 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -28,7 +34,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.it140p_spark.data.LOGIN_PHP_SCRIPT
@@ -70,9 +83,15 @@ class LoginActivity : ComponentActivity() {
 fun Login() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val passwordFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var usernameError by remember { mutableStateOf(false) }
+    var passwordError by remember { mutableStateOf(false) }
+    var usernameSupportingText by remember { mutableStateOf("*enter your MCL live email address") }
+    var passwordSupportingText by remember { mutableStateOf("*enter your password") }
 
     val httpClient = remember {
         HttpClient(CIO) {
@@ -95,48 +114,147 @@ fun Login() {
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.login_bg),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .align(Alignment.Center),
-            verticalArrangement = Arrangement.Center,
+            Modifier
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(24.dp)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp, alignment = Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Login", style = MaterialTheme.typography.headlineLarge)
-            Spacer(modifier = Modifier.height(32.dp))
-
+            Text("MMCL Spark", style = MaterialTheme.typography.headlineLarge)
             OutlinedTextField(
                 value = username,
-                onValueChange = { username = it },
-                label = { Text("Username") },
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = {
+                    username = it
+                    if (usernameError) {
+                        usernameError = false
+                        usernameSupportingText = "*enter your MCL live email address"
+                    }
+                },
+                label = { Text("Email*") },
+                isError = usernameError,
+                supportingText = {
+                    Text(
+                        usernameSupportingText,
+                        color = if (usernameError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                    )
+                },
+                trailingIcon = {
+                    if (usernameError) {
+                        Icon(
+                            imageVector = Icons.Filled.Error,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { passwordFocusRequester.requestFocus() }
+                )
             )
-            Spacer(modifier = Modifier.height(16.dp))
-
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = {
-                    coroutineScope.launch {
-                        performLoginAttempt(
-                            httpClient,
+                onValueChange = {
+                    password = it
+                    if (passwordError) {
+                        passwordError = false
+                        passwordSupportingText = "*enter your password"
+                    }
+                },
+                label = { Text("Password*") },
+                isError = passwordError,
+                supportingText = {
+                    Text(
+                        passwordSupportingText,
+                        color = if (passwordError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                    )
+                },
+                trailingIcon = {
+                    if (passwordError) {
+                        Icon(
+                            imageVector = Icons.Filled.Error,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().focusRequester(passwordFocusRequester),
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        val hasError = validateAndSetErrors(
                             username,
                             password,
-                            context
+                            onUsernameError = { msg ->
+                                usernameError = true
+                                usernameSupportingText = msg
+                            },
+                            onPasswordError = {
+                                passwordError = true
+                                passwordSupportingText = "Password is required"
+                            }
                         )
+                        if (!hasError) {
+                            focusManager.clearFocus()
+                            coroutineScope.launch {
+                                performLoginAttempt(
+                                    httpClient,
+                                    username,
+                                    password,
+                                    context
+                                )
+                            }
+                        }
+                    }
+                )
+            )
+            Button(
+                onClick = {
+                    val hasError = validateAndSetErrors(
+                        username,
+                        password,
+                        onUsernameError = { msg ->
+                            usernameError = true
+                            usernameSupportingText = msg
+                        },
+                        onPasswordError = {
+                            passwordError = true
+                            passwordSupportingText = "Password is required"
+                        }
+                    )
+                    if (!hasError) {
+                        coroutineScope.launch {
+                            performLoginAttempt(
+                                httpClient,
+                                username,
+                                password,
+                                context
+                            )
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Login")
+                Text("Sign In", Modifier.padding(vertical = 8.dp))
             }
         }
     }
@@ -211,4 +329,26 @@ private suspend fun loginUser(
 
 fun showToast(context: Context, message: CharSequence) {
     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+}
+
+// Add helper function for validation
+private fun validateAndSetErrors(
+    username: String,
+    password: String,
+    onUsernameError: (String) -> Unit,
+    onPasswordError: () -> Unit
+): Boolean {
+    var hasError = false
+    if (username.isBlank()) {
+        onUsernameError("Email is required")
+        hasError = true
+    } else if (!username.endsWith("@live.mcl.edu.ph")) {
+        onUsernameError("Email must be a valid MCL live account")
+        hasError = true
+    }
+    if (password.isBlank()) {
+        onPasswordError()
+        hasError = true
+    }
+    return hasError
 }
