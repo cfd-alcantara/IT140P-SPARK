@@ -72,6 +72,8 @@ import io.ktor.http.contentType
 import io.ktor.client.request.forms.FormDataContent // NEW
 import io.ktor.http.Parameters // NEW
 import java.time.LocalDate // NEW
+import com.example.it140p_spark.ui.components.Timetable
+import com.example.it140p_spark.ui.components.sampleEvents
 
 const val serverURL = "http://192.168.100.9/student_management_system/REST/"
 
@@ -458,7 +460,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         }
                     }
                 }
-                1 -> { // Section Tab (unchanged as per request scope)
+                1 -> { // Section Tab
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -493,29 +495,26 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         }
 
                         val groupedSections = enlistedCourses
-                            .groupBy { it.courseId + (it.sectionId ?: "") } // Group by CourseID and actual SectionID (handle null)
+                            .groupBy { it.courseId + (it.sectionId ?: "") }
                             .map { (_, entries) ->
                                 val first = entries.first()
                                 GroupedSection(
                                     courseId = first.courseId,
                                     courseName = first.courseName,
                                     courseCode = first.courseCode,
-                                    sectionId = first.sectionId ?: "", // Provide default empty string
-                                    sectionCode = first.sectionCode ?: "", // Provide default empty string
+                                    sectionId = first.sectionId ?: "",
+                                    sectionCode = first.sectionCode ?: "",
                                     courseUnits = first.courseUnits,
                                     schedules = entries.mapNotNull { enlistedCourse ->
                                         if (enlistedCourse.day != null && enlistedCourse.startTime != null && enlistedCourse.endTime != null) {
                                             ScheduleEntry(enlistedCourse.day, enlistedCourse.startTime, enlistedCourse.endTime)
-                                        } else {
-                                            null // Filter out schedules with null time info
-                                        }
+                                        } else null
                                     }
                                 )
                             }
 
-
                         items(groupedSections) { section ->
-                            val uniqueId = section.courseId + section.sectionId // Use section.sectionId
+                            val uniqueId = section.courseId + section.sectionId
                             val isSelected = selectedSectionIds.contains(uniqueId)
 
                             AvailableGroupedSection(
@@ -537,8 +536,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                             selectedSectionIds.remove(existingUniqueId)
                                         }
                                         selectedSectionIds.add(uniqueId)
-                                        // Pick one representative to insert
-                                        val firstSchedule = toggled.schedules.firstOrNull() // Use toggled.schedules
+                                        val firstSchedule = toggled.schedules.firstOrNull()
                                         selectedCourseSection.add(
                                             EnlistedCourse(
                                                 courseId = toggled.courseId,
@@ -568,13 +566,10 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 }
                             )
                         }
-
-
                         item {
-                            Box(modifier = Modifier.height(600.dp)) {
-                                TimeTable_Sectioning()
-                            }
+                            Timetable(events = sampleEvents)
                         }
+
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
@@ -583,7 +578,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                         if (enlistmentId != null) {
                                             selectedCourseSection.forEach { course ->
                                                 val courseId = course.courseId
-                                                val sectionId = course.sectionId ?: "" // Handle nullable SectionID
+                                                val sectionId = course.sectionId ?: ""
                                                 ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
                                             }
                                             context.toast("Sections submitted.")
@@ -600,8 +595,9 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 Text("Confirm Section Selection")
                             }
                         }
-
                     }
+
+                    // Suggested Schedule Dialog
                     if (showSuggestionDialog) {
                         var showDialog by remember { mutableStateOf(false) }
                         AlertDialog(
@@ -611,68 +607,54 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
                                 Column(
                                     modifier = Modifier
-                                        .heightIn(min = 100.dp, max = 400.dp) // limit height of scrollable area
+                                        .heightIn(min = 100.dp, max = 400.dp)
                                         .verticalScroll(rememberScrollState())
                                 ) {
                                     suggestedSchedule.forEach { section ->
-                                        Text(
-                                            text = "${section.courseCode} - ${section.courseName}",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        Text(
-                                            text = "Section: ${section.sectionCode}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-
-                                        section.schedules
-                                            .groupBy { it.day }
-                                            .forEach { (day, times) ->
-                                                val mergedRanges = times.mapNotNull {
-                                                    try {
-                                                        val start = LocalTime.parse(it.startTime, timeFormatter)
-                                                        val end = LocalTime.parse(it.endTime, timeFormatter)
-                                                        start to end
-                                                    } catch (e: Exception) {
-                                                        null
-                                                    }
-                                                }.sortedBy { it.first }
-                                                    .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
-                                                        if (acc.isEmpty()) {
-                                                            acc.add(current)
+                                        Text("${section.courseCode} - ${section.courseName}")
+                                        Text("Section: ${section.sectionCode}")
+                                        section.schedules.groupBy { it.day }.forEach { (day, times) ->
+                                            val mergedRanges = times.mapNotNull {
+                                                try {
+                                                    val start = LocalTime.parse(it.startTime, timeFormatter)
+                                                    val end = LocalTime.parse(it.endTime, timeFormatter)
+                                                    start to end
+                                                } catch (e: Exception) {
+                                                    null
+                                                }
+                                            }.sortedBy { it.first }
+                                                .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
+                                                    if (acc.isEmpty()) {
+                                                        acc.add(current)
+                                                    } else {
+                                                        val last = acc.last()
+                                                        if (!current.first.isAfter(last.second)) {
+                                                            acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
                                                         } else {
-                                                            val last = acc.last()
-                                                            if (!current.first.isAfter(last.second)) {
-                                                                acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
-                                                            } else {
-                                                                acc.add(current)
-                                                            }
+                                                            acc.add(current)
                                                         }
-                                                        acc
                                                     }
-
-                                                val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
-                                                val timeRanges = mergedRanges.joinToString(", ") {
-                                                    "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
+                                                    acc
                                                 }
 
-                                                Text(
-                                                    text = "$day: $timeRanges",
-                                                    style = MaterialTheme.typography.labelSmall
-                                                )
+                                            val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
+                                            val timeRanges = mergedRanges.joinToString(", ") {
+                                                "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
                                             }
 
+                                            Text("$day: $timeRanges")
+                                        }
                                         Spacer(modifier = Modifier.height(8.dp))
                                     }
                                 }
                             },
-
                             confirmButton = {
                                 Button(
                                     onClick = {
                                         selectedCourseSection.clear()
                                         selectedSectionIds.clear()
                                         suggestedSchedule.forEach { grouped ->
-                                            val uniqueId = grouped.courseId + grouped.sectionId // Use grouped.sectionId
+                                            val uniqueId = grouped.courseId + grouped.sectionId
                                             grouped.schedules.forEach { schedule ->
                                                 selectedCourseSection.add(
                                                     EnlistedCourse(
@@ -704,8 +686,8 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                             }
                         )
                     }
-
-                } // NEW
+                }
+                // NEW
                 2 -> {
                     val finalizeEnlistedCourses = remember { mutableStateOf<List<FinalizationEnlistedCourse>>(emptyList()) }
                     var finalizeStudentTerm by remember { mutableStateOf("Loading...") }
