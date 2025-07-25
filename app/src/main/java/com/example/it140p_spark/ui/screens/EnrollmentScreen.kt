@@ -73,7 +73,7 @@ import io.ktor.client.request.forms.FormDataContent // NEW
 import io.ktor.http.Parameters // NEW
 import java.time.LocalDate // NEW
 
-const val serverURL = "http://192.168.100.9/student_management_system/REST/"
+const val serverURL = "http://192.168.18.13/student_management_system/REST/"
 
 @Serializable
 data class Course(

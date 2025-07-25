@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "EnrollingFunction"
+rootProject.name = "Spark"
 include(":app")
  
