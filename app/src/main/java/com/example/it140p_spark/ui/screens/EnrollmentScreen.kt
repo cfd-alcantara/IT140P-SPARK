@@ -52,7 +52,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
-import com.example.it140p_spark.ui.components.TimeTable_Sectioning
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -68,12 +67,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.RadioButton
+import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import io.ktor.http.contentType
 import io.ktor.client.request.forms.FormDataContent // NEW
 import io.ktor.http.Parameters // NEW
 import java.time.LocalDate // NEW
+import com.example.it140p_spark.ui.components.Timetable
 
-const val serverURL = "http://192.168.18.13/student_management_system/REST/"
+const val serverURL = "http://192.168.100.9/student_management_system/REST/"
 
 @Serializable
 data class Course(
@@ -114,6 +115,13 @@ data class ScheduleEntry(
 
 @Serializable
 data class CourseSearchResponse(
+    val status: String,
+    val message: String? = null,
+    val data: List<Course>? = null
+)
+
+@Serializable
+data class CourseEnlistedSearchResponse(
     val status: String,
     val message: String? = null,
     val data: List<Course>? = null
@@ -235,7 +243,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
             println("Fetched all available courses: ${allFetchedCourses.size} courses.")
 
             // Fetch courses currently enlisted by the student
-            val enlistedCoursesFromBackend = fetchCourseSectionsSuspend(context, httpClient, currentStudentId)
+            val enlistedCoursesFromBackend = fetchCourseEnlistedSuspend(context, httpClient, currentStudentId)
             println("Fetched enlisted courses from backend: ${enlistedCoursesFromBackend.size} courses.")
 
             // Update initialEnrolledCourses (source of truth from backend)
@@ -451,7 +459,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         }
                     }
                 }
-                1 -> { // Section Tab (unchanged as per request scope)
+                1 -> { // Section Tab
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -486,29 +494,26 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         }
 
                         val groupedSections = enlistedCourses
-                            .groupBy { it.courseId + (it.sectionId ?: "") } // Group by CourseID and actual SectionID (handle null)
+                            .groupBy { it.courseId + (it.sectionId ?: "") }
                             .map { (_, entries) ->
                                 val first = entries.first()
                                 GroupedSection(
                                     courseId = first.courseId,
                                     courseName = first.courseName,
                                     courseCode = first.courseCode,
-                                    sectionId = first.sectionId ?: "", // Provide default empty string
-                                    sectionCode = first.sectionCode ?: "", // Provide default empty string
+                                    sectionId = first.sectionId ?: "",
+                                    sectionCode = first.sectionCode ?: "",
                                     courseUnits = first.courseUnits,
                                     schedules = entries.mapNotNull { enlistedCourse ->
                                         if (enlistedCourse.day != null && enlistedCourse.startTime != null && enlistedCourse.endTime != null) {
                                             ScheduleEntry(enlistedCourse.day, enlistedCourse.startTime, enlistedCourse.endTime)
-                                        } else {
-                                            null // Filter out schedules with null time info
-                                        }
+                                        } else null
                                     }
                                 )
                             }
 
-
                         items(groupedSections) { section ->
-                            val uniqueId = section.courseId + section.sectionId // Use section.sectionId
+                            val uniqueId = section.courseId + section.sectionId
                             val isSelected = selectedSectionIds.contains(uniqueId)
 
                             AvailableGroupedSection(
@@ -530,8 +535,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                             selectedSectionIds.remove(existingUniqueId)
                                         }
                                         selectedSectionIds.add(uniqueId)
-                                        // Pick one representative to insert
-                                        val firstSchedule = toggled.schedules.firstOrNull() // Use toggled.schedules
+                                        val firstSchedule = toggled.schedules.firstOrNull()
                                         selectedCourseSection.add(
                                             EnlistedCourse(
                                                 courseId = toggled.courseId,
@@ -561,13 +565,10 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 }
                             )
                         }
-
-
                         item {
-                            Box(modifier = Modifier.height(600.dp)) {
-                                TimeTable_Sectioning()
-                            }
+                            StudentScheduleTimetable(context, currentStudentId, httpClient)
                         }
+
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
@@ -576,7 +577,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                         if (enlistmentId != null) {
                                             selectedCourseSection.forEach { course ->
                                                 val courseId = course.courseId
-                                                val sectionId = course.sectionId ?: "" // Handle nullable SectionID
+                                                val sectionId = course.sectionId ?: ""
                                                 ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
                                             }
                                             context.toast("Sections submitted.")
@@ -593,8 +594,9 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 Text("Confirm Section Selection")
                             }
                         }
-
                     }
+
+                    // Suggested Schedule Dialog
                     if (showSuggestionDialog) {
                         var showDialog by remember { mutableStateOf(false) }
                         AlertDialog(
@@ -604,68 +606,54 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
                                 Column(
                                     modifier = Modifier
-                                        .heightIn(min = 100.dp, max = 400.dp) // limit height of scrollable area
+                                        .heightIn(min = 100.dp, max = 400.dp)
                                         .verticalScroll(rememberScrollState())
                                 ) {
                                     suggestedSchedule.forEach { section ->
-                                        Text(
-                                            text = "${section.courseCode} - ${section.courseName}",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        Text(
-                                            text = "Section: ${section.sectionCode}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-
-                                        section.schedules
-                                            .groupBy { it.day }
-                                            .forEach { (day, times) ->
-                                                val mergedRanges = times.mapNotNull {
-                                                    try {
-                                                        val start = LocalTime.parse(it.startTime, timeFormatter)
-                                                        val end = LocalTime.parse(it.endTime, timeFormatter)
-                                                        start to end
-                                                    } catch (e: Exception) {
-                                                        null
-                                                    }
-                                                }.sortedBy { it.first }
-                                                    .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
-                                                        if (acc.isEmpty()) {
-                                                            acc.add(current)
+                                        Text("${section.courseCode} - ${section.courseName}")
+                                        Text("Section: ${section.sectionCode}")
+                                        section.schedules.groupBy { it.day }.forEach { (day, times) ->
+                                            val mergedRanges = times.mapNotNull {
+                                                try {
+                                                    val start = LocalTime.parse(it.startTime, timeFormatter)
+                                                    val end = LocalTime.parse(it.endTime, timeFormatter)
+                                                    start to end
+                                                } catch (e: Exception) {
+                                                    null
+                                                }
+                                            }.sortedBy { it.first }
+                                                .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
+                                                    if (acc.isEmpty()) {
+                                                        acc.add(current)
+                                                    } else {
+                                                        val last = acc.last()
+                                                        if (!current.first.isAfter(last.second)) {
+                                                            acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
                                                         } else {
-                                                            val last = acc.last()
-                                                            if (!current.first.isAfter(last.second)) {
-                                                                acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
-                                                            } else {
-                                                                acc.add(current)
-                                                            }
+                                                            acc.add(current)
                                                         }
-                                                        acc
                                                     }
-
-                                                val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
-                                                val timeRanges = mergedRanges.joinToString(", ") {
-                                                    "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
+                                                    acc
                                                 }
 
-                                                Text(
-                                                    text = "$day: $timeRanges",
-                                                    style = MaterialTheme.typography.labelSmall
-                                                )
+                                            val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
+                                            val timeRanges = mergedRanges.joinToString(", ") {
+                                                "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
                                             }
 
+                                            Text("$day: $timeRanges")
+                                        }
                                         Spacer(modifier = Modifier.height(8.dp))
                                     }
                                 }
                             },
-
                             confirmButton = {
                                 Button(
                                     onClick = {
                                         selectedCourseSection.clear()
                                         selectedSectionIds.clear()
                                         suggestedSchedule.forEach { grouped ->
-                                            val uniqueId = grouped.courseId + grouped.sectionId // Use grouped.sectionId
+                                            val uniqueId = grouped.courseId + grouped.sectionId
                                             grouped.schedules.forEach { schedule ->
                                                 selectedCourseSection.add(
                                                     EnlistedCourse(
@@ -697,8 +685,8 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                             }
                         )
                     }
-
-                } // NEW
+                }
+                // NEW
                 2 -> {
                     val finalizeEnlistedCourses = remember { mutableStateOf<List<FinalizationEnlistedCourse>>(emptyList()) }
                     var finalizeStudentTerm by remember { mutableStateOf("Loading...") }
@@ -1118,68 +1106,6 @@ fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
     }
 }
 
-private suspend fun processSelectedCoursesForAction(
-    context: Context,
-    httpClient: HttpClient,
-    studentId: String,
-    selectedCourses: MutableList<Course>,
-    isAddAction: Boolean // This parameter determines whether to add or remove
-) {
-    if (selectedCourses.isEmpty()) {
-        context.toast("Please select at least one course for action.")
-        return
-    }
-
-    val coursesToProcess = selectedCourses.toList()
-    val successfullyProcessedCourses = mutableListOf<Course>()
-    var enlistmentId: String? = null // Relevant only for the 'add' action to potentially reuse an enlistment ID
-
-    val actionDescription = if (isAddAction) "enrollment" else "removal"
-    val successMessageVerb = if (isAddAction) "enrolled" else "removed"
-
-    for (course in coursesToProcess) {
-        val success: Boolean
-
-        if (isAddAction) {
-            // Logic for adding courses
-            val (addSuccess, returnedId) = ktorAddEnrollment(
-                context = context,
-                httpClient = httpClient,
-                studentId = studentId,
-                courseId = course.courseId,
-                currentEnlistmentId = enlistmentId
-            )
-            success = addSuccess
-            if (success && enlistmentId == null && returnedId != null) {
-                // If this is the first successful addition, store the returned enlistment ID
-                // to potentially reuse for subsequent course additions within the same batch.
-                enlistmentId = returnedId
-            }
-        } else {
-            // Logic for removing courses
-            success = ktorRemoveEnrollment(
-                context = context,
-                httpClient = httpClient,
-                studentId = studentId,
-                courseId = course.courseId
-            )
-        }
-
-        if (success) {
-            successfullyProcessedCourses.add(course)
-        } else {
-            // If any action fails, display a toast and stop processing the rest of the courses
-            context.toast("Failed to $actionDescription for ${course.courseCode}.")
-            return // Exit the function immediately on the first failure, consistent with original break behavior
-        }
-    }
-
-    // If the code reaches here, it means all courses in the `coursesToProcess` list were successfully processed.
-    selectedCourses.removeAll(successfullyProcessedCourses) // Update the original list of selected courses
-
-    context.toast("All selected courses ${successMessageVerb} successfully!")
-}
-
 private suspend fun fetchCoursesSuspend(context: Context, httpClient: HttpClient, query: String): List<Course> {
     return try {
         val fullUrl = "${serverURL}search_courseinfo.php?query=${query}"
@@ -1206,9 +1132,35 @@ private suspend fun fetchCoursesSuspend(context: Context, httpClient: HttpClient
     }
 }
 
-private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: HttpClient, studentID: String): List<EnlistedCourse> {
+private suspend fun fetchCourseEnlistedSuspend(context: Context, httpClient: HttpClient, studentID: String): List<Course> {
     return try {
         val fullUrl = "${serverURL}get_courseEnlisted.php?StudentID=${studentID}"
+        println("Fetching enlisted courses from: $fullUrl")
+        val response: HttpResponse = httpClient.get(fullUrl)
+        val responseBodyString = response.bodyAsText()
+        println("Raw JSON response for enlisted courses: $responseBodyString")
+        if (response.status.value == 200) {
+            val parsedResponse = Json.decodeFromString<CourseEnlistedSearchResponse>(responseBodyString)
+            if (parsedResponse.status == "success" && parsedResponse.data != null) {
+                parsedResponse.data
+            } else {
+                context.toast("Server reported error (enlisted courses): ${parsedResponse.message ?: "Unknown error"}")
+                emptyList()
+            }
+        } else {
+            context.toast("HTTP Error fetching enlisted courses: ${response.status.value} - ${response.status.description}")
+            emptyList()
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        context.toast("Error fetching enlisted courses: ${e.localizedMessage}")
+        emptyList()
+    }
+}
+
+private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: HttpClient, studentID: String): List<EnlistedCourse> {
+    return try {
+        val fullUrl = "${serverURL}get_courseEnlisted_Schedule.php?StudentID=${studentID}"
         println("Fetching enlisted courses from: $fullUrl")
         val response: HttpResponse = httpClient.get(fullUrl)
         val responseBodyString = response.bodyAsText()
@@ -1232,13 +1184,7 @@ private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: Htt
     }
 }
 
-suspend fun ktorAddEnrollment(
-    context: Context,
-    httpClient: HttpClient,
-    studentId: String,
-    courseId: String,
-    currentEnlistmentId: String?
-): Pair<Boolean, String?> {
+suspend fun ktorAddEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String, currentEnlistmentId: String?): Pair<Boolean, String?> {
     return try {
         val urlBuilder = StringBuilder("${serverURL}add_enlistment.php?student_id=$studentId&course_id=$courseId")
         if (currentEnlistmentId != null) {
@@ -1262,7 +1208,6 @@ suspend fun ktorAddEnrollment(
         Pair(false, null)
     }
 }
-
 
 private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
     try {
@@ -1289,13 +1234,7 @@ private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClien
     }
 }
 
-suspend fun ktorInsertSection(
-    context: Context,
-    httpClient: HttpClient,
-    enlistmentId: String,
-    courseId: String,
-    sectionId: String
-): Boolean {
+suspend fun ktorInsertSection(context: Context, httpClient: HttpClient, enlistmentId: String, courseId: String, sectionId: String): Boolean {
     return try {
         val fullUrl = "${serverURL}insert_section.php?EnlistmentID=$enlistmentId&CourseID=$courseId&SectionID=$sectionId"
         println("Inserting section via: $fullUrl")
@@ -1377,12 +1316,7 @@ private fun suggestValidSchedule(sections: List<EnlistedCourse>): List<GroupedSe
 }
 
 @Composable
-fun AvailableGroupedSection(
-    section: GroupedSection,
-    isSelected: Boolean,
-    onToggleSelect: (GroupedSection) -> Unit,
-    onSectionConfirmed: (GroupedSection) -> Unit
-) {
+fun AvailableGroupedSection(section: GroupedSection, isSelected: Boolean, onToggleSelect: (GroupedSection) -> Unit, onSectionConfirmed: (GroupedSection) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
 
