@@ -6,13 +6,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
-import com.example.it140p_spark.ui.screens.serverURL
 import com.example.it140p_spark.ui.screens.toast
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -24,17 +22,32 @@ import kotlinx.serialization.json.Json
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import kotlin.math.roundToInt
+import androidx.compose.ui.platform.LocalDensity
+import com.example.it140p_spark.data.SERVER_URL
 
-enum class Weekday(val label: String) {
-    Monday("Mon"),
-    Tuesday("Tue"),
-    Wednesday("Wed"),
-    Thursday("Thu"),
-    Friday("Fri"),
-    Saturday("Sat")
+enum class Weekday(val display: String) {
+    Monday("Monday"),
+    Tuesday("Tuesday"),
+    Wednesday("Wednesday"),
+    Thursday("Thursday"),
+    Friday("Friday"),
+    Saturday("Saturday");
 }
 
-data class SimpleEvent(
+data class SimpleScheduleEvent(
     val name: String,
     val day: Weekday,
     val startHour: Float,
@@ -76,111 +89,262 @@ fun mapDayStringToEnum(day: String): Weekday? {
     }
 }
 
+// --- Conversion function ---
+fun scheduleToSimpleScheduleEvent(schedule: Schedule, color: Color): SimpleScheduleEvent? {
+    val dayEnum = schedule.day?.let { mapDayStringToEnum(it) } ?: return null
+    val start = schedule.startTime?.let {
+        try { parseTimeToFloat(it) } catch (e: Exception) { return null }
+    } ?: return null
+    val end = schedule.endTime?.let {
+        try { parseTimeToFloat(it) } catch (e: Exception) { return null }
+    } ?: return null
+    return SimpleScheduleEvent(
+        name = schedule.courseCode,
+        color = color,
+        day = dayEnum,
+        startHour = start,
+        endHour = end
+    )
+}
+
 @Composable
 fun StudentScheduleTimetable(
     context: Context,
     studentID: String,
     httpClient: HttpClient
 ) {
-    var events by remember { mutableStateOf<List<SimpleEvent>>(emptyList()) }
+    var events by remember { mutableStateOf<List<SimpleScheduleEvent>>(emptyList()) }
+    val containerColor = MaterialTheme.colorScheme.primaryContainer
 
     LaunchedEffect(studentID) {
         val schedule = fetchStudentSchedule(context, httpClient, studentID)
-        events = schedule.mapNotNull { entry ->
-            val dayEnum = entry.day?.let { mapDayStringToEnum(it) }
-            val start = entry.startTime?.let { parseTimeToFloat(it) }
-            val end = entry.endTime?.let { parseTimeToFloat(it) }
-
-            if (dayEnum != null && start != null && end != null) {
-                SimpleEvent(
-                    name = entry.courseCode,
-                    day = dayEnum,
-                    startHour = start,
-                    endHour = end,
-                    color = Color(0xFF90CAF9) // Light blue
-                )
-            } else null
-        }
+        events = schedule.mapNotNull { scheduleToSimpleScheduleEvent(it, containerColor) }
     }
 
-    Timetable(events)
+    WeeklySchedule(events = events)
 }
 
+// --- SimpleScheduleEventBox (grid style) ---
 @Composable
-fun Timetable(events: List<SimpleEvent>) {
-    val days = Weekday.values()
-
-    val startTime = 7.0f
-    val endTime = 20.75f // 8:45 PM
-    val interval = 1.25f
-    val timeSlots = buildList {
-        var current = startTime
-        while (current < endTime) {
-            add(current)
-            current += interval
-        }
-        add(endTime) // include 8:45 PM explicitly
+fun SimpleScheduleEventBox(
+    event: SimpleScheduleEvent,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(end = 2.dp, bottom = 2.dp)
+            .clipToBounds()
+            .background(
+                event.color,
+                shape = RoundedCornerShape(4.dp)
+            )
+            .padding(4.dp)
+    ) {
+        Text(
+            text = "${formatTimeSlot(event.startHour)} - ${formatTimeSlot(event.endHour)}",
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        Text(
+            text = event.name,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
+}
 
-    val borderColor = Color.Gray.copy(alpha = 0.3f)
+// --- WeeklyDaysHeader (grid style) ---
+@Composable
+fun WeeklyDaysHeader(
+    modifier: Modifier = Modifier,
+    dayWidth: Dp = 128.dp
+) {
+    val today = remember { java.time.LocalDate.now().dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() } }
+    Row(modifier = modifier) {
+        Weekday.entries.forEach { day ->
+            val isToday = day.display.equals(today, ignoreCase = true)
+            Box(
+                modifier = Modifier
+                    .width(dayWidth)
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = day.display,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp)
+                        .then(
+                            if (isToday) Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(50)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                            else Modifier
+                        ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isToday) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // Header row
-        Row(Modifier.fillMaxWidth()) {
-            Spacer(Modifier.width(60.dp))
-            days.forEach {
+// --- SimpleTimesSidebar (grid style) ---
+@Composable
+fun SimpleTimesSidebar(
+    modifier: Modifier = Modifier,
+    hourHeight: Dp = 72.dp,
+    minTime: LocalTime = LocalTime.of(7, 0),
+    maxTime: LocalTime = LocalTime.of(22, 0),
+) {
+    // Build time slots with 1 hour 15 min interval
+    val intervalMinutes = 75
+    val timeSlots = mutableListOf<LocalTime>()
+    var current = minTime
+    while (!current.isAfter(maxTime)) {
+        timeSlots.add(current)
+        current = current.plusMinutes(intervalMinutes.toLong())
+    }
+    Column(modifier = modifier) {
+        timeSlots.forEach { labelTime ->
+            Box(
+                modifier = Modifier.height(hourHeight).padding(end = 4.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = labelTime.format(DateTimeFormatter.ofPattern("h:mm a")),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(2.dp)
+                )
+            }
+        }
+    }
+}
+
+// --- WeeklySchedule (grid layout) ---
+@Composable
+fun WeeklySchedule(
+    events: List<SimpleScheduleEvent>,
+    modifier: Modifier = Modifier,
+    dayWidth: Dp = 128.dp,
+    hourHeight: Dp = 72.dp,
+    minTime: LocalTime = LocalTime.of(7, 0),
+    maxTime: LocalTime = LocalTime.of(22, 0),
+    eventBox: @Composable (SimpleScheduleEvent) -> Unit = { SimpleScheduleEventBox(it) }
+) {
+    // Build time slots for grid lines
+    val intervalMinutes = 75
+    val timeSlots = mutableListOf<LocalTime>()
+    var current = minTime
+    while (!current.isAfter(maxTime)) {
+        timeSlots.add(current)
+        current = current.plusMinutes(intervalMinutes.toLong())
+    }
+    val hoursCount = timeSlots.size - 1
+    val verticalScrollState = rememberScrollState()
+    val horizontalScrollState = rememberScrollState()
+    var sidebarWidth by remember { mutableIntStateOf(0) }
+    var headerHeight by remember {mutableIntStateOf(0) }
+
+    Box (modifier = modifier) {
+        Column {
+            // Header Row
+            Row(
+                modifier = Modifier
+                    .padding(start = with(LocalDensity.current) { sidebarWidth.toDp() })
+                    .onGloballyPositioned { headerHeight = it.size.height }
+                    .horizontalScroll(horizontalScrollState)
+            ) {
+                WeeklyDaysHeader(dayWidth = dayWidth)
+            }
+            // Content
+            Row(
+                modifier = Modifier.weight(1f)
+            ) {
+                // Times Sidebar
+                SimpleTimesSidebar(
+                    hourHeight = hourHeight,
+                    minTime = minTime,
+                    maxTime = maxTime,
+                    modifier = Modifier
+                        .onGloballyPositioned { sidebarWidth = it.size.width }
+                        .verticalScroll(verticalScrollState)
+                )
+                // Schedule Grid
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .border(1.dp, borderColor),
-                    contentAlignment = Alignment.Center
+                        .verticalScroll(verticalScrollState)
+                        .horizontalScroll(horizontalScrollState)
+                        .drawBehind {
+                            // Horizontal lines for each interval
+                            repeat(hoursCount + 1) { i ->
+                                val y = i * hourHeight.toPx()
+                                drawLine(
+                                    color = Color.LightGray,
+                                    start = Offset(0f, y),
+                                    end = Offset(size.width, y),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            }
+                            // Vertical day dividers
+                            repeat(Weekday.entries.size + 1) { i ->
+                                val x = i * dayWidth.toPx()
+                                drawLine(
+                                    color = Color.LightGray,
+                                    start = Offset(x, 0f),
+                                    end = Offset(x, size.height),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            }
+                        }
                 ) {
-                    Text(
-                        text = it.label,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        }
+                    Layout(
+                        content = {
+                            events.forEach { event ->
+                                Box {
+                                    eventBox(event)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    ) { measurables, constraints ->
+                        val dayCount = Weekday.entries.size
+                        val gridWidth = (dayWidth.toPx() * dayCount).roundToInt()
+                        val gridHeight = (hourHeight.toPx() * hoursCount).roundToInt()
+                        val placeables = measurables.mapIndexed { idx, measurable ->
+                            val event = events[idx]
+                            val eventDayIdx = event.day.ordinal
+                            // Calculate top and height based on 75 min intervals
+                            val startTotalMinutes = (event.startHour * 60).toInt()
+                            val endTotalMinutes = (event.endHour * 60).toInt()
+                            val minTotalMinutes = minTime.hour * 60 + minTime.minute
+                            val top = ((startTotalMinutes - minTotalMinutes) / intervalMinutes.toFloat()) * hourHeight.toPx()
+                            val height = ((endTotalMinutes - startTotalMinutes) / intervalMinutes.toFloat()) * hourHeight.toPx()
+                            val left = eventDayIdx * dayWidth.toPx()
+                            val width = dayWidth.toPx()
 
-        // Time rows
-        timeSlots.forEach { time ->
-            Row(Modifier.fillMaxWidth().height(48.dp)) {
-                Box(
-                    modifier = Modifier
-                        .width(60.dp)
-                        .border(1.dp, borderColor),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Text(
-                        text = formatTimeSlot(time),
-                        modifier = Modifier.padding(end = 4.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-
-                days.forEach { day ->
-                    val matched = events.find {
-                        it.day == day && time >= it.startHour && time < it.endHour
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .border(1.dp, borderColor)
-                            .background(matched?.color ?: Color.Transparent),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (matched != null && time == matched.startHour) {
-                            Text(
-                                matched.name,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1
-                            )
+                            val placeable = measurable.measure(constraints.copy(
+                                minWidth = width.roundToInt(), maxWidth = width.roundToInt(),
+                                minHeight = height.roundToInt(), maxHeight = height.roundToInt()
+                            ))
+                            Triple(placeable, left.roundToInt(), top.roundToInt())
+                        }
+                        layout(gridWidth, gridHeight) {
+                            placeables.forEach { (placeable, left, top) ->
+                                placeable.place(left, top)
+                            }
                         }
                     }
                 }
@@ -199,7 +363,7 @@ fun formatTimeSlot(time: Float): String {
 
 suspend fun fetchStudentSchedule(context: Context, httpClient: HttpClient, studentID: String): List<Schedule> {
     return try {
-        val fullUrl = "${serverURL}get_studentSchedule.php?StudentID=${studentID}"
+        val fullUrl = "${SERVER_URL}get_studentSchedule.php?StudentID=${studentID}"
         val response: HttpResponse = httpClient.get(fullUrl)
         val responseBodyString = response.bodyAsText()
         if (response.status.value == 200) {

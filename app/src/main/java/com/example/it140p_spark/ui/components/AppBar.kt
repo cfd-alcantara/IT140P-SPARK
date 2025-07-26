@@ -9,6 +9,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Close
@@ -35,17 +36,9 @@ fun AppBar(
             TopAppBar(
                 scrollBehavior = scrollBehavior,
                 title = { Text(text = "Schedule") },
-                navigationIcon = {
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Open Menu")
-                    }
-                },
                 actions = {
                     IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.Favorite, contentDescription = "Open Likes")
-                    }
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.Settings, contentDescription = "Open Settings")
+                        Icon(imageVector = Icons.Filled.Notifications, contentDescription = "Open Notifications")
                     }
                 }
             )
