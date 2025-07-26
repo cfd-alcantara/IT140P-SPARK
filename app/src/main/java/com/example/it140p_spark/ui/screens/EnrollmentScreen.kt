@@ -52,7 +52,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
-import com.example.it140p_spark.ui.components.TimeTable_Sectioning
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -68,12 +67,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.RadioButton
+import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import io.ktor.http.contentType
 import io.ktor.client.request.forms.FormDataContent // NEW
 import io.ktor.http.Parameters // NEW
 import java.time.LocalDate // NEW
 import com.example.it140p_spark.ui.components.Timetable
-import com.example.it140p_spark.ui.components.sampleEvents
 
 const val serverURL = "http://192.168.100.9/student_management_system/REST/"
 
@@ -567,7 +566,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                             )
                         }
                         item {
-                            Timetable(events = sampleEvents)
+                            StudentScheduleTimetable(context, currentStudentId, httpClient)
                         }
 
                         item {
@@ -1107,68 +1106,6 @@ fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
     }
 }
 
-private suspend fun processSelectedCoursesForAction(
-    context: Context,
-    httpClient: HttpClient,
-    studentId: String,
-    selectedCourses: MutableList<Course>,
-    isAddAction: Boolean // This parameter determines whether to add or remove
-) {
-    if (selectedCourses.isEmpty()) {
-        context.toast("Please select at least one course for action.")
-        return
-    }
-
-    val coursesToProcess = selectedCourses.toList()
-    val successfullyProcessedCourses = mutableListOf<Course>()
-    var enlistmentId: String? = null // Relevant only for the 'add' action to potentially reuse an enlistment ID
-
-    val actionDescription = if (isAddAction) "enrollment" else "removal"
-    val successMessageVerb = if (isAddAction) "enrolled" else "removed"
-
-    for (course in coursesToProcess) {
-        val success: Boolean
-
-        if (isAddAction) {
-            // Logic for adding courses
-            val (addSuccess, returnedId) = ktorAddEnrollment(
-                context = context,
-                httpClient = httpClient,
-                studentId = studentId,
-                courseId = course.courseId,
-                currentEnlistmentId = enlistmentId
-            )
-            success = addSuccess
-            if (success && enlistmentId == null && returnedId != null) {
-                // If this is the first successful addition, store the returned enlistment ID
-                // to potentially reuse for subsequent course additions within the same batch.
-                enlistmentId = returnedId
-            }
-        } else {
-            // Logic for removing courses
-            success = ktorRemoveEnrollment(
-                context = context,
-                httpClient = httpClient,
-                studentId = studentId,
-                courseId = course.courseId
-            )
-        }
-
-        if (success) {
-            successfullyProcessedCourses.add(course)
-        } else {
-            // If any action fails, display a toast and stop processing the rest of the courses
-            context.toast("Failed to $actionDescription for ${course.courseCode}.")
-            return // Exit the function immediately on the first failure, consistent with original break behavior
-        }
-    }
-
-    // If the code reaches here, it means all courses in the `coursesToProcess` list were successfully processed.
-    selectedCourses.removeAll(successfullyProcessedCourses) // Update the original list of selected courses
-
-    context.toast("All selected courses ${successMessageVerb} successfully!")
-}
-
 private suspend fun fetchCoursesSuspend(context: Context, httpClient: HttpClient, query: String): List<Course> {
     return try {
         val fullUrl = "${serverURL}search_courseinfo.php?query=${query}"
@@ -1247,13 +1184,7 @@ private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: Htt
     }
 }
 
-suspend fun ktorAddEnrollment(
-    context: Context,
-    httpClient: HttpClient,
-    studentId: String,
-    courseId: String,
-    currentEnlistmentId: String?
-): Pair<Boolean, String?> {
+suspend fun ktorAddEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String, currentEnlistmentId: String?): Pair<Boolean, String?> {
     return try {
         val urlBuilder = StringBuilder("${serverURL}add_enlistment.php?student_id=$studentId&course_id=$courseId")
         if (currentEnlistmentId != null) {
@@ -1277,7 +1208,6 @@ suspend fun ktorAddEnrollment(
         Pair(false, null)
     }
 }
-
 
 private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
     try {
@@ -1304,13 +1234,7 @@ private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClien
     }
 }
 
-suspend fun ktorInsertSection(
-    context: Context,
-    httpClient: HttpClient,
-    enlistmentId: String,
-    courseId: String,
-    sectionId: String
-): Boolean {
+suspend fun ktorInsertSection(context: Context, httpClient: HttpClient, enlistmentId: String, courseId: String, sectionId: String): Boolean {
     return try {
         val fullUrl = "${serverURL}insert_section.php?EnlistmentID=$enlistmentId&CourseID=$courseId&SectionID=$sectionId"
         println("Inserting section via: $fullUrl")
@@ -1392,12 +1316,7 @@ private fun suggestValidSchedule(sections: List<EnlistedCourse>): List<GroupedSe
 }
 
 @Composable
-fun AvailableGroupedSection(
-    section: GroupedSection,
-    isSelected: Boolean,
-    onToggleSelect: (GroupedSection) -> Unit,
-    onSectionConfirmed: (GroupedSection) -> Unit
-) {
+fun AvailableGroupedSection(section: GroupedSection, isSelected: Boolean, onToggleSelect: (GroupedSection) -> Unit, onSectionConfirmed: (GroupedSection) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
 
