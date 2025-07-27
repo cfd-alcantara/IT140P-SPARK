@@ -11,13 +11,17 @@ import kotlinx.coroutines.flow.map
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 // Colors
-enum class ColorMode { DEFAULT, DYNAMIC }
+enum class ColorMode(val display: String) {
+    DEFAULT("Default"),
+    DYNAMIC("Dynamic")
+}
 
 // DataStore for theme preferences
 val Context.themeDataStore by preferencesDataStore(name = "theme_prefs")
 
 object ThemePreferenceManager {
     private val THEME_KEY = stringPreferencesKey("theme_mode")
+    private val COLOR_MODE_KEY = stringPreferencesKey("color_mode")
 
     fun themeModeFlow(context: Context): Flow<ThemeMode> =
         context.themeDataStore.data.map { prefs ->
@@ -31,6 +35,20 @@ object ThemePreferenceManager {
     suspend fun setThemeMode(context: Context, mode: ThemeMode) {
         context.themeDataStore.edit { prefs ->
             prefs[THEME_KEY] = mode.name
+        }
+    }
+
+    fun colorModeFlow(context: Context): Flow<ColorMode> =
+        context.themeDataStore.data.map { prefs ->
+            when (prefs[COLOR_MODE_KEY]) {
+                "DYNAMIC" -> ColorMode.DYNAMIC
+                else -> ColorMode.DEFAULT
+            }
+        }
+
+    suspend fun setColorMode(context: Context, mode: ColorMode) {
+        context.themeDataStore.edit { prefs ->
+            prefs[COLOR_MODE_KEY] = mode.name
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.example.it140p_spark.data.functions
 
 import android.content.Context
-import com.example.it140p_spark.data.utils.SERVER_URL
+import com.example.it140p_spark.data.SERVER_URL
 import com.example.it140p_spark.data.models.Course
 import com.example.it140p_spark.data.models.CourseEnlistedSearchResponse
 import com.example.it140p_spark.data.models.CourseSearchResponse

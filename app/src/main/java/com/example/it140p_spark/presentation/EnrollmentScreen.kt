@@ -62,7 +62,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.RadioButton
-import com.example.it140p_spark.data.utils.SERVER_URL
+import com.example.it140p_spark.data.SERVER_URL
 import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import com.example.it140p_spark.data.models.*
 import com.example.it140p_spark.data.functions.EnlistmentFunctions

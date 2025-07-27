@@ -29,9 +29,7 @@ import com.example.it140p_spark.data.utils.ThemeMode
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.launch
 import com.example.it140p_spark.data.utils.ThemePreferenceManager
 
 class MainActivity : ComponentActivity() {
@@ -53,10 +51,17 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App(studentId: String) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val themeFlow = remember { ThemePreferenceManager.themeModeFlow(context) }
     val persistedTheme by themeFlow.collectAsState(initial = ThemeMode.SYSTEM)
     var themeMode by remember { mutableStateOf(persistedTheme) }
+
+    // Observe ColorMode from DataStore
+    val colorModeFlow = remember { ThemePreferenceManager.colorModeFlow(context) }
+    val persistedColorMode by colorModeFlow.collectAsState(initial = com.example.it140p_spark.data.utils.ColorMode.DEFAULT)
+    var colorMode by remember { mutableStateOf(persistedColorMode) }
+
+    // Add dynamicColor state (sync with colorMode)
+    var dynamicColor by remember { mutableStateOf(colorMode == com.example.it140p_spark.data.utils.ColorMode.DYNAMIC) }
 
     // Save theme to DataStore when changed, but only if it is different from persistedTheme
     LaunchedEffect(themeMode) {
@@ -65,10 +70,25 @@ fun App(studentId: String) {
         }
     }
 
+    // Save colorMode to DataStore when changed
+    LaunchedEffect(colorMode) {
+        if (colorMode != persistedColorMode) {
+            ThemePreferenceManager.setColorMode(context, colorMode)
+        }
+        dynamicColor = colorMode == com.example.it140p_spark.data.utils.ColorMode.DYNAMIC
+    }
+
     // Update themeMode when persistedTheme changes (e.g., after app restart)
     LaunchedEffect(persistedTheme) {
         if (themeMode != persistedTheme) {
             themeMode = persistedTheme
+        }
+    }
+
+    // Update colorMode when persistedColorMode changes
+    LaunchedEffect(persistedColorMode) {
+        if (colorMode != persistedColorMode) {
+            colorMode = persistedColorMode
         }
     }
 
@@ -84,7 +104,8 @@ fun App(studentId: String) {
             ThemeMode.SYSTEM -> isSystemInDarkTheme()
             ThemeMode.LIGHT -> false
             ThemeMode.DARK -> true
-        }
+        },
+        dynamicColor = dynamicColor
     ) {
         ScaffoldLayout(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -120,7 +141,11 @@ fun App(studentId: String) {
                     onNavigate = { moreScreenState = it },
                     padding = padding,
                     themeMode = themeMode,
-                    onThemeChange = { themeMode = it }
+                    onThemeChange = { themeMode = it },
+                    colorMode = colorMode,
+                    onColorModeChange = { colorMode = it },
+                    dynamicColor = dynamicColor,
+                    onDynamicColorChange = { dynamicColor = it; colorMode = if (it) com.example.it140p_spark.data.utils.ColorMode.DYNAMIC else com.example.it140p_spark.data.utils.ColorMode.DEFAULT }
                 )
             }
         }
