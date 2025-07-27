@@ -18,11 +18,13 @@ import com.example.it140p_spark.presentation.RecordsScreen
 import com.example.it140p_spark.presentation.ScheduleScreen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.it140p_spark.presentation.MoreScreen
+import com.example.it140p_spark.presentation.MoreSubScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,18 +48,30 @@ fun App(studentId: String) {
     val selectedNavItem = navItems[selectedIndex]
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
+    // MoreScreen navigation state
+    var moreScreenState by remember { mutableStateOf<MoreSubScreen>(MoreSubScreen.Main) }
+
     ScaffoldLayout(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            AppBar(
-                route = selectedNavItem.route,
-                scrollBehavior = scrollBehavior
-            )
+            when {
+                selectedNavItem.route == "more" && moreScreenState == MoreSubScreen.Appearance ->
+                    AppBar(route = "appearance", scrollBehavior = scrollBehavior, onBack = { moreScreenState = MoreSubScreen.Main })
+                selectedNavItem.route == "more" && moreScreenState == MoreSubScreen.About ->
+                    AppBar(route = "about", scrollBehavior = scrollBehavior, onBack = { moreScreenState = MoreSubScreen.Main })
+                selectedNavItem.route != "more" ->
+                    AppBar(route = selectedNavItem.route, scrollBehavior = scrollBehavior)
+            }
         },
         bottomBar = {
             NavBar(
                 selectedIndex = selectedIndex,
-                onItemSelected = { selectedIndex = it }
+                onItemSelected = {
+                    selectedIndex = it
+                    if (navItems[it].route == "more") {
+                        moreScreenState = MoreSubScreen.Main
+                    }
+                }
             )
         },
     ) { padding ->
@@ -66,7 +80,11 @@ fun App(studentId: String) {
             "enroll" -> EnrollmentScreen(studentId, padding)
             "billing" -> BillingScreen(padding)
             "records" -> RecordsScreen(padding)
-            "more" -> MoreScreen(padding)
+            "more" -> MoreScreen(
+                currentScreen = moreScreenState,
+                onNavigate = { moreScreenState = it },
+                padding = padding
+            )
         }
     }
 }

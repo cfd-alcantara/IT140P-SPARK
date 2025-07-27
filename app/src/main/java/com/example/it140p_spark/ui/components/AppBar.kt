@@ -29,7 +29,8 @@ import androidx.compose.ui.Modifier
 @Composable
 fun AppBar(
     route: String,
-    scrollBehavior: TopAppBarScrollBehavior
+    scrollBehavior: TopAppBarScrollBehavior,
+    onBack: (() -> Unit)? = null
 ) {
     when (route) {
         "schedule" -> {
@@ -127,6 +128,28 @@ fun AppBar(
                     }
                     IconButton(onClick = { /* do something*/ }) {
                         Icon(imageVector = Icons.Filled.Settings, contentDescription = "Open Settings")
+                    }
+                }
+            )
+        }
+        "appearance" -> {
+            TopAppBar(
+                scrollBehavior = scrollBehavior,
+                title = { Text(text = "Appearance") },
+                navigationIcon = {
+                    IconButton(onClick = { onBack?.invoke() }) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+        "about" -> {
+            TopAppBar(
+                scrollBehavior = scrollBehavior,
+                title = { Text(text = "About") },
+                navigationIcon = {
+                    IconButton(onClick = { onBack?.invoke() }) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
