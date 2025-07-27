@@ -177,9 +177,6 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     val enlistmentIdState = remember { mutableStateOf<String?>(null) }
     val enlistmentId = enlistmentIdState.value
 
-    //Finalize
-    val onTabSelected: (Int) -> Unit
-
     //Enlistment
     val selectedCourses = remember { mutableStateListOf<Course>() }
     var coursesList: List<Course> by remember { mutableStateOf(emptyList()) }
@@ -881,7 +878,6 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
                                             if (finalizeResponse.status == "success") {
                                                 context.toast("Enrollment finalized successfully!")
-                                                onTabSelected(0)
                                             } else {
                                                 context.toast("Failed to finalize enrollment: ${finalizeResponse.message ?: "Unknown error"}")
                                             }
