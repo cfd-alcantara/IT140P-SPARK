@@ -12,10 +12,10 @@ import com.example.it140p_spark.ui.components.AppBar
 import com.example.it140p_spark.ui.components.NavBar
 import com.example.it140p_spark.ui.components.navItems
 import com.example.it140p_spark.ui.layout.ScaffoldLayout
-import com.example.it140p_spark.ui.screens.BillingScreen
-import com.example.it140p_spark.ui.screens.EnrollmentScreen
-import com.example.it140p_spark.ui.screens.RecordsScreen
-import com.example.it140p_spark.ui.screens.ScheduleScreen
+import com.example.it140p_spark.presentation.BillingScreen
+import com.example.it140p_spark.presentation.EnrollmentScreen
+import com.example.it140p_spark.presentation.RecordsScreen
+import com.example.it140p_spark.presentation.ScheduleScreen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -61,7 +61,7 @@ fun App(studentId: String) {
         },
     ) { padding ->
         when (selectedNavItem.route) {
-            "schedule" -> ScheduleScreen(padding)
+            "schedule" -> ScheduleScreen(studentId, padding)
             "enroll" -> EnrollmentScreen(studentId, padding)
             "billing" -> BillingScreen(padding)
             "records" -> RecordsScreen(padding)

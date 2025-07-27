@@ -1,4 +1,4 @@
-package com.example.it140p_spark.ui.screens
+package com.example.it140p_spark.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,11 +12,11 @@ import io.ktor.client.HttpClient
 /* todo: display the finalized list of courses in this Screen
 *        else, will display a message that "you are not enrolled" */
 @Composable
-fun ScheduleScreen(padding: PaddingValues) {
+fun ScheduleScreen(studentId: String, padding: PaddingValues) {
     Box(modifier = Modifier.padding(padding)) {
         StudentScheduleTimetable(
             context = LocalContext.current,
-            studentID = "2022153255", // Replace with actual
+            studentID = studentId, // Use dynamic studentId
             httpClient = HttpClient() // Reuse or inject your client
         )
     }

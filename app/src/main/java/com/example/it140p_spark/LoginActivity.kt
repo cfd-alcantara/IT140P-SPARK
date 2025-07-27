@@ -45,7 +45,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.it140p_spark.data.LOGIN_PHP_SCRIPT
 import com.example.it140p_spark.data.SERVER_URL
 import com.example.it140p_spark.ui.theme.IT140P_SPARKTheme
 import io.ktor.client.HttpClient
@@ -300,7 +299,7 @@ private suspend fun loginUser(
     passwordPlain: String
 ): Pair<String, String?> {
     return try {
-        val fullUrl = "${SERVER_URL}${LOGIN_PHP_SCRIPT}"
+        val fullUrl = "${SERVER_URL}student_login_json.php"
 
         val response: HttpResponse = httpClient.post(fullUrl) {
             contentType(ContentType.Application.FormUrlEncoded)

@@ -1,4 +1,4 @@
-package com.example.it140p_spark.ui.screens
+package com.example.it140p_spark.presentation
 
 import android.content.Context
 import android.widget.Toast
@@ -49,12 +49,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import androidx.compose.material3.AlertDialog
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -67,109 +62,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.RadioButton
+import com.example.it140p_spark.data.SERVER_URL
 import com.example.it140p_spark.ui.components.StudentScheduleTimetable
-import io.ktor.http.contentType
-import io.ktor.client.request.forms.FormDataContent // NEW
-import io.ktor.http.Parameters // NEW
-import java.time.LocalDate // NEW
-
-const val serverURL = "http://192.168.18.13/student_management_system/REST/"
-
-@Serializable
-data class Course(
-    @SerialName("CourseID") val courseId: String,
-    @SerialName("CourseName") val courseName: String,
-    @SerialName("CourseCode") val courseCode: String,
-    @SerialName("CourseUnits") val courseUnits: String
-)
-
-@Serializable
-data class EnlistedCourse(
-    @SerialName("CourseID") val courseId: String,
-    @SerialName("CourseName") val courseName: String,
-    @SerialName("CourseCode") val courseCode: String,
-    @SerialName("SectionID") val sectionId: String?,
-    @SerialName("SectionCode") val sectionCode: String?,
-    @SerialName("CourseUnits") val courseUnits: String,
-    @SerialName("Day") val day: String?,
-    @SerialName("StartTime") val startTime: String?,
-    @SerialName("EndTime") val endTime: String?
-)
-
-data class GroupedSection(
-    val courseId: String,
-    val courseName: String,
-    val courseCode: String,
-    val sectionId: String,
-    val sectionCode: String,
-    val courseUnits: String,
-    val schedules: List<ScheduleEntry>
-)
-
-data class ScheduleEntry(
-    val day: String,
-    val startTime: String,
-    val endTime: String
-)
-
-@Serializable
-data class CourseSearchResponse(
-    val status: String,
-    val message: String? = null,
-    val data: List<Course>? = null
-)
-
-@Serializable
-data class CourseEnlistedSearchResponse(
-    val status: String,
-    val message: String? = null,
-    val data: List<Course>? = null
-)
-
-@Serializable
-data class CourseSectionSearchResponse(
-    val status: String,
-    val message: String? = null,
-    val data: List<EnlistedCourse>? = null
-)
-
-@Serializable
-data class EnrollmentResponse(
-    val status: String,
-    val message: String
-)
-
-@Serializable
-data class FinalizationEnlistedCourse( // NEW
-    val CourseEnlistedID: Int,
-    val CourseID: Int,
-    val CourseName: String,
-    val CourseCode: String,
-    val CourseUnits: Int,
-    val EnlistmentID: Int,
-    val SectionID: Int?,
-    val SectionCODE: String?,
-    val Room: String?,
-    val Capacity: Int?,
-    val CurrentEnrolled: Int?,
-    val InstructorFirstName: String?,
-    val InstructorLastName: String?
-)
-
-@Serializable
-data class StudentFinalizationDataResponse( // NEW
-    val status: String,
-    val courses: List<FinalizationEnlistedCourse>? = null,
-    val term: String? = null,
-    val message: String? = null
-)
-
-@Serializable
-data class FinalizeEnrollmentResponse( // NEW
-    val status: String,
-    val message: String? = null,
-    val enrollment_id: Int? = null
-)
+import com.example.it140p_spark.data.models.*
+import com.example.it140p_spark.data.functions.EnlistmentFunctions
+import com.example.it140p_spark.data.functions.SectioningFunctions
+import com.example.it140p_spark.data.functions.FinalizeFunctions
 
 fun Context.toast(message: CharSequence) {
     Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
@@ -231,18 +129,18 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     // LaunchedEffect to manage data fetching based on tab, search query, and refreshTrigger
     LaunchedEffect(selectedTabIndex, searchCourseQuery, refreshTrigger, selectedCourses.size) { // Add refreshTrigger here
         println("LaunchedEffect triggered. selectedTabIndex: $selectedTabIndex, searchCourseQuery: $searchCourseQuery, refreshTrigger: $refreshTrigger")
-        fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
+        EnlistmentFunctions.fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
             enlistmentIdState.value = fetchedId
             println("Fetched Enlistment ID: $fetchedId")
         }
 
         if (selectedTabIndex == 0) {
             // Fetch all courses from the server
-            val allFetchedCourses = fetchCoursesSuspend(context, httpClient, searchCourseQuery)
+            val allFetchedCourses = EnlistmentFunctions.fetchCoursesSuspend(context, httpClient, searchCourseQuery)
             println("Fetched all available courses: ${allFetchedCourses.size} courses.")
 
             // Fetch courses currently enlisted by the student
-            val enlistedCoursesFromBackend = fetchCourseEnlistedSuspend(context, httpClient, currentStudentId)
+            val enlistedCoursesFromBackend = EnlistmentFunctions.fetchCourseEnlistedSuspend(context, httpClient, currentStudentId)
             println("Fetched enlisted courses from backend: ${enlistedCoursesFromBackend.size} courses.")
 
             // Update initialEnrolledCourses (source of truth from backend)
@@ -263,7 +161,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
         } else if (selectedTabIndex == 1) {
             // Only fetch enlisted courses for the Section tab
-            enlistedCourses = fetchCourseSectionsSuspend(context, httpClient, currentStudentId)
+            enlistedCourses = SectioningFunctions.fetchCourseSectionsSuspend(context, httpClient, currentStudentId)
             println("Enlisted courses for Section tab: ${enlistedCourses.size} courses.")
         }
     }
@@ -305,7 +203,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Student Enrollment",
+                            text = "Student Enlistment",
                             fontSize = 28.sp,
                             style = MaterialTheme.typography.headlineLarge,
                             modifier = Modifier.padding(bottom = 16.dp)
@@ -428,16 +326,17 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                             onClick = {
                                 coroutineScope.launch {
                                     println("Confirm Changes button pressed.")
-                                    processConfirmAction(
-                                        context,
-                                        httpClient,
-                                        currentStudentId,
-                                        enlistmentId, // Pass the current enlistment ID
-                                        initialEnrolledCourses, // The original state (from backend)
-                                        stagedCoursesForAction // The desired final state (from UI)
+                                    EnlistmentFunctions.processConfirmAction(
+                                        context = context,
+                                        httpClient = httpClient,
+                                        studentId = currentStudentId,
+                                        enlistmentId = enlistmentId, // Pass the current enlistment ID
+                                        initialEnrolledCourses = initialEnrolledCourses,
+                                        finalSelectedCourses = stagedCoursesForAction,
+                                        toast = { context.toast(it) }
                                     )
                                     // Trigger refresh
-                                    refreshTrigger++ // Increment to trigger LaunchedEffect
+                                    refreshTrigger += 1 // Use += 1 to increment Int
                                     println("refreshTrigger incremented to: $refreshTrigger")
                                 }
                             },
@@ -476,7 +375,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
                                     onClick = {
-                                        val suggestion = suggestValidSchedule(enlistedCourses)
+                                        val suggestion = SectioningFunctions.suggestValidSchedule(enlistedCourses)
                                         if (suggestion != null) {
                                             suggestedSchedule = suggestion
                                             showSuggestionDialog = true
@@ -553,7 +452,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 onSectionConfirmed = {
                                     coroutineScope.launch {
                                         if (enlistmentId != null) {
-                                            ktorInsertSection(
+                                            SectioningFunctions.ktorInsertSection(
                                                 context, httpClient, enlistmentId,
                                                 section.courseId, section.sectionId
                                             )
@@ -577,7 +476,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                             selectedCourseSection.forEach { course ->
                                                 val courseId = course.courseId
                                                 val sectionId = course.sectionId ?: ""
-                                                ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
+                                                SectioningFunctions.ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
                                             }
                                             context.toast("Sections submitted.")
                                         } else {
@@ -704,7 +603,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         finalizeErrorMessage = null
                         var rawResponseContent: String? = null
                         try {
-                            val response = httpClient.get("${serverURL}get_studentFinalization.php?student_id=$currentStudentId")
+                            val response = httpClient.get("${SERVER_URL}get_studentFinalization.php?student_id=$currentStudentId")
                             rawResponseContent = response.bodyAsText()
                             val parsedData = Json.decodeFromString<StudentFinalizationDataResponse>(rawResponseContent)
 
@@ -884,28 +783,16 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
                                     finalizeIsSubmitting = true
                                     coroutineScope.launch {
-                                        var responseBody: String? = null
                                         try {
-                                            val enrollmentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-
-                                            val response = httpClient.post("${serverURL}add_finalization.php") {
-                                                contentType(io.ktor.http.ContentType.Application.FormUrlEncoded)
-                                                setBody(
-                                                    FormDataContent(
-                                                        Parameters.build {
-                                                            append("student_id", currentStudentId)
-                                                            append("enlistment_id", enlistmentIdToFinalize.toString())
-                                                            append("payment_type", finalizeSelectedPaymentType)
-                                                            append("term", finalizeStudentTerm)
-                                                            append("enrollment_date", enrollmentDate)
-                                                            append("status", finalizeSelectedEnrollmentStatus)
-                                                        }
-                                                    )
-                                                )
-                                            }
-                                            responseBody = response.bodyAsText()
-                                            val finalizeResponse = Json.decodeFromString<FinalizeEnrollmentResponse>(responseBody)
-
+                                            val finalizeResponse = FinalizeFunctions.finalizeEnrollment(
+                                                context = context,
+                                                httpClient = httpClient,
+                                                studentId = currentStudentId,
+                                                enlistmentId = enlistmentIdToFinalize.toString(),
+                                                paymentType = finalizeSelectedPaymentType,
+                                                term = finalizeStudentTerm,
+                                                enrollmentStatus = finalizeSelectedEnrollmentStatus
+                                            )
                                             if (finalizeResponse.status == "success") {
                                                 context.toast("Enrollment finalized successfully!")
                                                 selectedTabIndex = 0
@@ -914,7 +801,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                             }
                                         } catch (e: Exception) {
                                             e.printStackTrace()
-                                            context.toast("Error during enrollment finalization: ${e.localizedMessage ?: "Unknown error"}. Raw response from add_finalization.php: '${responseBody ?: "N/A"}'")
+                                            context.toast("Error during enrollment finalization: ${e.localizedMessage ?: "Unknown error"}.")
                                         } finally {
                                             finalizeIsSubmitting = false
                                         }
@@ -936,104 +823,6 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 }
 
 // --- Helper Functions (START) ---
-
-suspend fun processConfirmAction(
-    context: Context,
-    httpClient: HttpClient,
-    studentId: String,
-    enlistmentId: String?, // The enlistment ID, could be null if no courses were ever added
-    initialEnrolledCourses: List<Course>, // The courses that were initially on record
-    finalSelectedCourses: List<Course> // The courses the user wants to have (current state of 'Selected Courses' table)
-) {
-    println("--- Processing Confirm Action ---")
-    println("Initial Enrolled Courses: ${initialEnrolledCourses.map { it.courseCode }}")
-    println("Final Selected Courses (staged): ${finalSelectedCourses.map { it.courseCode }}")
-
-    // Identify courses to add: present in finalSelectedCourses but not in initialEnrolledCourses
-    val coursesToAdd = finalSelectedCourses.filter { it !in initialEnrolledCourses }
-    // Identify courses to remove: present in initialEnrolledCourses but not in finalSelectedCourses
-    val coursesToRemove = initialEnrolledCourses.filter { it !in finalSelectedCourses }
-
-    println("Courses to Add: ${coursesToAdd.map { it.courseCode }}")
-    println("Courses to Remove: ${coursesToRemove.map { it.courseCode }}")
-
-    var anyFailure = false
-    var currentEnlistmentId = enlistmentId // Use a mutable copy for updates
-
-    // Process additions
-    for (course in coursesToAdd) {
-        println("Attempting to add: ${course.courseCode}")
-        val (success, newId) = ktorAddEnrollment(
-            context = context,
-            httpClient = httpClient,
-            studentId = studentId,
-            courseId = course.courseId,
-            currentEnlistmentId = currentEnlistmentId // Pass the current or newly obtained enlistment ID
-        )
-        if (success) {
-            // If a new enlistment ID was generated (e.g., first course added), store it
-            if (currentEnlistmentId == null && newId != null) {
-                currentEnlistmentId = newId
-                println("New enlistment ID obtained: $newId")
-            }
-            context.toast("Added ${course.courseCode}")
-        } else {
-            context.toast("Failed to add ${course.courseCode}")
-            anyFailure = true
-        }
-    }
-
-    // Process removals
-    for (course in coursesToRemove) {
-        println("Attempting to remove: ${course.courseCode}")
-        val success = ktorRemoveEnrollment(
-            context = context,
-            httpClient = httpClient,
-            studentId = studentId,
-            courseId = course.courseId
-        )
-        if (success) {
-            context.toast("Removed ${course.courseCode}")
-        } else {
-            context.toast("Failed to remove ${course.courseCode}")
-            anyFailure = true
-        }
-    }
-
-    if (!anyFailure) {
-        context.toast("All changes confirmed successfully!")
-    } else {
-        context.toast("Some changes failed to apply. Please check the console for details.")
-    }
-    println("--- Confirm Action Finished ---")
-}
-
-suspend fun fetchEnlistmentId(
-    context: Context,
-    httpClient: HttpClient,
-    studentId: String,
-    onFetched: (String?) -> Unit
-) {
-    try {
-        val response = httpClient.get("${serverURL}get_enlistmentID.php?student_id=$studentId")
-        val body = response.bodyAsText()
-        println("Fetched enlistment ID response: $body")
-        val json = Json.parseToJsonElement(body).jsonObject
-        val status = json["status"]?.jsonPrimitive?.contentOrNull
-        if (status == "success") {
-            val enlistmentId = json["enlistment_id"]?.jsonPrimitive?.contentOrNull
-            onFetched(enlistmentId)
-        } else {
-            context.toast(json["message"]?.jsonPrimitive?.content ?: "No enlistment found.")
-            onFetched(null)
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Failed to fetch enlistment ID: ${e.localizedMessage}")
-        onFetched(null)
-    }
-}
-
 
 @Composable
 fun AvailableCourseItem(course: Course, onSelect: (Course) -> Unit) {
@@ -1103,215 +892,6 @@ fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
             Text("Deselect")
         }
     }
-}
-
-private suspend fun fetchCoursesSuspend(context: Context, httpClient: HttpClient, query: String): List<Course> {
-    return try {
-        val fullUrl = "${serverURL}search_courseinfo.php?query=${query}"
-        println("Fetching all courses from: $fullUrl")
-        val response: HttpResponse = httpClient.get(fullUrl)
-        val responseBodyString = response.bodyAsText()
-        println("Raw JSON response for all courses: $responseBodyString")
-        if (response.status.value == 200) {
-            val parsedResponse = Json.decodeFromString<CourseSearchResponse>(responseBodyString)
-            if (parsedResponse.status == "success" && parsedResponse.data != null) {
-                parsedResponse.data
-            } else {
-                context.toast("Server reported error (all courses): ${parsedResponse.message ?: "Unknown error"}")
-                emptyList()
-            }
-        } else {
-            context.toast("HTTP Error fetching all courses: ${response.status.value} - ${response.status.description}")
-            emptyList()
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Error fetching all courses: ${e.localizedMessage}")
-        emptyList()
-    }
-}
-
-private suspend fun fetchCourseEnlistedSuspend(context: Context, httpClient: HttpClient, studentID: String): List<Course> {
-    return try {
-        val fullUrl = "${serverURL}get_courseEnlisted.php?StudentID=${studentID}"
-        println("Fetching enlisted courses from: $fullUrl")
-        val response: HttpResponse = httpClient.get(fullUrl)
-        val responseBodyString = response.bodyAsText()
-        println("Raw JSON response for enlisted courses: $responseBodyString")
-        if (response.status.value == 200) {
-            val parsedResponse = Json.decodeFromString<CourseEnlistedSearchResponse>(responseBodyString)
-            if (parsedResponse.status == "success" && parsedResponse.data != null) {
-                parsedResponse.data
-            } else {
-                context.toast("Server reported error (enlisted courses): ${parsedResponse.message ?: "Unknown error"}")
-                emptyList()
-            }
-        } else {
-            context.toast("HTTP Error fetching enlisted courses: ${response.status.value} - ${response.status.description}")
-            emptyList()
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Error fetching enlisted courses: ${e.localizedMessage}")
-        emptyList()
-    }
-}
-
-private suspend fun fetchCourseSectionsSuspend(context: Context, httpClient: HttpClient, studentID: String): List<EnlistedCourse> {
-    return try {
-        val fullUrl = "${serverURL}get_courseEnlisted_Schedule.php?StudentID=${studentID}"
-        println("Fetching enlisted courses from: $fullUrl")
-        val response: HttpResponse = httpClient.get(fullUrl)
-        val responseBodyString = response.bodyAsText()
-        println("Raw JSON response for enlisted courses: $responseBodyString")
-        if (response.status.value == 200) {
-            val parsedResponse = Json.decodeFromString<CourseSectionSearchResponse>(responseBodyString)
-            if (parsedResponse.status == "success" && parsedResponse.data != null) {
-                parsedResponse.data
-            } else {
-                context.toast("Server reported error (enlisted courses): ${parsedResponse.message ?: "Unknown error"}")
-                emptyList()
-            }
-        } else {
-            context.toast("HTTP Error fetching enlisted courses: ${response.status.value} - ${response.status.description}")
-            emptyList()
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Error fetching enlisted courses: ${e.localizedMessage}")
-        emptyList()
-    }
-}
-
-suspend fun ktorAddEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String, currentEnlistmentId: String?): Pair<Boolean, String?> {
-    return try {
-        val urlBuilder = StringBuilder("${serverURL}add_enlistment.php?student_id=$studentId&course_id=$courseId")
-        if (currentEnlistmentId != null) {
-            urlBuilder.append("&enlistment_id=$currentEnlistmentId")
-        }
-        val fullUrl = urlBuilder.toString()
-        println("Sending add enrollment request to: $fullUrl")
-
-        val response = httpClient.get(fullUrl)
-        val responseText = response.bodyAsText()
-        println("Server Response (add_enlistment): ${response.status} - $responseText")
-
-        val json = Json.parseToJsonElement(responseText).jsonObject
-        val success = json["status"]?.jsonPrimitive?.content == "success"
-        val newEnlistmentId = json["enlistment_id"]?.jsonPrimitive?.content
-
-        Pair(success, newEnlistmentId)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Enrollment failed: ${e.localizedMessage}")
-        Pair(false, null)
-    }
-}
-
-private suspend fun ktorRemoveEnrollment(context: Context, httpClient: HttpClient, studentId: String, courseId: String): Boolean {
-    try {
-        if (studentId.isBlank() || courseId.isBlank()) {
-            context.toast("Missing student or course ID.")
-            return false
-        }
-        val fullUrl = "${serverURL}remove_enlistment.php?student_id=${studentId}&course_id=${courseId}"
-        println("Sending remove enrollment request to: $fullUrl")
-        val response = httpClient.get(fullUrl)
-        val responseBodyString = response.bodyAsText()
-        println("Response from server for removal: ${response.status} - $responseBodyString")
-        val enrollmentResponse = Json.decodeFromString<EnrollmentResponse>(responseBodyString)
-        if (enrollmentResponse.status == "success") {
-            return true
-        } else {
-            context.toast("Failed to remove $courseId: ${enrollmentResponse.message}")
-            return false
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Removal error for $courseId: ${e.localizedMessage ?: "Unknown"}")
-        return false
-    }
-}
-
-suspend fun ktorInsertSection(context: Context, httpClient: HttpClient, enlistmentId: String, courseId: String, sectionId: String): Boolean {
-    return try {
-        val fullUrl = "${serverURL}insert_section.php?EnlistmentID=$enlistmentId&CourseID=$courseId&SectionID=$sectionId"
-        println("Inserting section via: $fullUrl")
-        val response = httpClient.get(fullUrl)
-        val body = response.bodyAsText()
-        println("Insert section response: ${response.status} - $body")
-        val result = Json.decodeFromString<EnrollmentResponse>(body)
-        if (result.status == "success") {
-            true
-        } else {
-            context.toast("Failed to insert section: ${result.message}")
-            false
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        context.toast("Error inserting section: ${e.localizedMessage}")
-        false
-    }
-}
-
-private fun suggestValidSchedule(sections: List<EnlistedCourse>): List<GroupedSection>? {
-    val grouped = sections.groupBy { it.courseId + (it.sectionCode ?: "") } // Handle nullable sectionCode in grouping
-
-    val groupedSections = grouped.map { (_, entries) ->
-        val first = entries.first()
-        GroupedSection(
-            courseId = first.courseId,
-            courseName = first.courseName,
-            courseCode = first.courseCode,
-            sectionId = first.sectionId ?: "", // Provide default empty string for non-nullable in GroupedSection
-            sectionCode = first.sectionCode ?: "", // Provide default empty string for non-nullable in GroupedSection
-            courseUnits = first.courseUnits,
-            schedules = entries.mapNotNull { enlistedCourse ->
-                if (enlistedCourse.day != null && enlistedCourse.startTime != null && enlistedCourse.endTime != null) {
-                    ScheduleEntry(enlistedCourse.day, enlistedCourse.startTime, enlistedCourse.endTime)
-                } else {
-                    null // Filter out schedules with null time info
-                }
-            }
-        )
-    }.groupBy { it.courseId }  // group by courseId to pick one section per course
-
-    fun hasConflict(existing: List<ScheduleEntry>, new: List<ScheduleEntry>): Boolean {
-        for (e in existing) {
-            for (n in new) {
-                if (e.day == n.day &&
-                    !(e.endTime <= n.startTime || n.endTime <= e.startTime)) {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    fun backtrack(
-        groupedList: List<List<GroupedSection>>,
-        index: Int,
-        currentSchedule: MutableList<GroupedSection>,
-        accumulatedSchedules: MutableList<ScheduleEntry>
-    ): List<GroupedSection>? {
-        if (index == groupedList.size) return currentSchedule.toList()
-
-        for (section in groupedList[index]) {
-            if (!hasConflict(accumulatedSchedules, section.schedules)) {
-                currentSchedule.add(section)
-                accumulatedSchedules.addAll(section.schedules)
-                val result = backtrack(groupedList, index + 1, currentSchedule, accumulatedSchedules)
-                if (result != null) return result
-                currentSchedule.removeAt(currentSchedule.size - 1)
-                accumulatedSchedules.removeAll(section.schedules)
-            }
-            // If the current section causes a conflict, try the next section for this course (if any)
-        }
-
-        return null
-    }
-
-    return backtrack(groupedSections.values.toList(), 0, mutableListOf(), mutableListOf())
 }
 
 @Composable

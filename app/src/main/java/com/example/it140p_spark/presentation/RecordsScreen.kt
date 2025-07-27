@@ -1,4 +1,4 @@
-package com.example.it140p_spark.ui.screens
+package com.example.it140p_spark.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,11 +8,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 @Composable
-fun BillingScreen(padding: PaddingValues) {
+fun RecordsScreen(padding: PaddingValues) {
     Box(modifier = Modifier.padding(padding)) {
-        // todo: Billing content
+        // todo: records content
         Text(
-            text = "Billing Screen"
+            text = "Records Screen"
         )
     }
 }
