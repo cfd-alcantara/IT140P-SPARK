@@ -1,7 +1,6 @@
 package com.example.it140p_spark.presentation
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +16,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.ColorLens
-import androidx.compose.material.icons.outlined.ExitToApp
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,30 +38,67 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.it140p_spark.R
 import com.example.it140p_spark.LoginActivity
+import com.example.it140p_spark.data.utils.ThemeMode
+import androidx.core.net.toUri
 
 private data class MoreItem(val label: String, val icon: ImageVector)
 
 private val moreItems = listOf(
     MoreItem("Appearance", Icons.Outlined.ColorLens),
     MoreItem("About", Icons.Outlined.Info),
-    MoreItem("Help", Icons.Outlined.HelpOutline),
-    MoreItem("Sign out", Icons.Outlined.ExitToApp)
+    MoreItem("Help", Icons.AutoMirrored.Outlined.HelpOutline),
+    MoreItem("Sign out", Icons.AutoMirrored.Outlined.ExitToApp)
 )
 
 sealed class MoreSubScreen {
-    object Main : MoreSubScreen()
-    object Appearance : MoreSubScreen()
-    object About : MoreSubScreen()
+    data object Main : MoreSubScreen()
+    data object Appearance : MoreSubScreen()
+    data object About : MoreSubScreen()
 }
 
 @Composable
-fun AppearanceScreen(modifier: Modifier = Modifier, padding: PaddingValues = PaddingValues()) {
-    Column(modifier = modifier.padding(padding)) {
-        Text(
-            text = "Appearance Settings",
-            modifier = Modifier.padding(24.dp),
-            style = MaterialTheme.typography.bodyLarge
-        )
+fun AppearanceScreen(
+    modifier: Modifier = Modifier,
+    padding: PaddingValues = PaddingValues(),
+    themeMode: ThemeMode,
+    onThemeChange: (ThemeMode) -> Unit
+) {
+    val themeOptions = listOf("System", "Light", "Dark")
+    val selectedTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> 0
+        ThemeMode.LIGHT -> 1
+        ThemeMode.DARK -> 2
+    }
+    LazyColumn(
+        modifier = modifier.padding(padding).padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text(
+                text = "Theme",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                themeOptions.forEachIndexed { idx, label ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = idx, count = themeOptions.size),
+                        onClick = {
+                            onThemeChange(
+                                when (idx) {
+                                    0 -> ThemeMode.SYSTEM
+                                    1 -> ThemeMode.LIGHT
+                                    2 -> ThemeMode.DARK
+                                    else -> ThemeMode.SYSTEM
+                                }
+                            )
+                        },
+                        selected = idx == selectedTheme,
+                        label = { Text(label) }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -96,7 +135,7 @@ fun AboutScreen(modifier: Modifier = Modifier, padding: PaddingValues = PaddingV
             }
         }
         item {
-            Divider()
+            HorizontalDivider()
         }
         items(aboutItems) { (main, sub) ->
             Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
@@ -135,7 +174,7 @@ fun MainScreen(onNavigate: (MoreSubScreen) -> Unit, modifier: Modifier = Modifie
             }
         }
         item {
-            Divider()
+            HorizontalDivider()
         }
         items(moreItems) { item ->
             Row(
@@ -146,7 +185,7 @@ fun MainScreen(onNavigate: (MoreSubScreen) -> Unit, modifier: Modifier = Modifie
                             "Appearance" -> onNavigate(MoreSubScreen.Appearance)
                             "About" -> onNavigate(MoreSubScreen.About)
                             "Help" -> {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://mmcl.edu.ph"))
+                                val intent = Intent(Intent.ACTION_VIEW, "https://mmcl.edu.ph".toUri())
                                 context.startActivity(intent)
                             }
                             "Sign out" -> {
@@ -175,14 +214,21 @@ fun MoreScreen(
     currentScreen: MoreSubScreen,
     onNavigate: (MoreSubScreen) -> Unit,
     modifier: Modifier = Modifier,
-    padding: PaddingValues = PaddingValues()
+    padding: PaddingValues = PaddingValues(),
+    themeMode: ThemeMode,
+    onThemeChange: (ThemeMode) -> Unit
 ) {
     when (currentScreen) {
         MoreSubScreen.Main -> {
             MainScreen(onNavigate = onNavigate, modifier = modifier)
         }
         MoreSubScreen.Appearance -> {
-            AppearanceScreen(modifier = modifier, padding = padding)
+            AppearanceScreen(
+                modifier = modifier,
+                padding = padding,
+                themeMode = themeMode,
+                onThemeChange = onThemeChange
+            )
         }
         MoreSubScreen.About -> {
             AboutScreen(modifier = modifier, padding = padding)

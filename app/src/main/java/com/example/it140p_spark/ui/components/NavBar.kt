@@ -50,7 +50,8 @@ fun NavBar(
                         contentDescription = item.label
                     )
                 },
-                label = { Text(text = item.label) }
+                label = { Text(item.label, maxLines = 1) },
+                alwaysShowLabel = true
             )
         }
     }

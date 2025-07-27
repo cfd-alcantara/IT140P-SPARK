@@ -25,6 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.it140p_spark.presentation.MoreScreen
 import com.example.it140p_spark.presentation.MoreSubScreen
+import com.example.it140p_spark.data.utils.ThemeMode
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import com.example.it140p_spark.data.utils.ThemePreferenceManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +52,26 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(studentId: String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val themeFlow = remember { ThemePreferenceManager.themeModeFlow(context) }
+    val persistedTheme by themeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+    var themeMode by remember { mutableStateOf(persistedTheme) }
+
+    // Save theme to DataStore when changed, but only if it is different from persistedTheme
+    LaunchedEffect(themeMode) {
+        if (themeMode != persistedTheme) {
+            ThemePreferenceManager.setThemeMode(context, themeMode)
+        }
+    }
+
+    // Update themeMode when persistedTheme changes (e.g., after app restart)
+    LaunchedEffect(persistedTheme) {
+        if (themeMode != persistedTheme) {
+            themeMode = persistedTheme
+        }
+    }
+
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selectedNavItem = navItems[selectedIndex]
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
@@ -51,40 +79,50 @@ fun App(studentId: String) {
     // MoreScreen navigation state
     var moreScreenState by remember { mutableStateOf<MoreSubScreen>(MoreSubScreen.Main) }
 
-    ScaffoldLayout(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            when {
-                selectedNavItem.route == "more" && moreScreenState == MoreSubScreen.Appearance ->
-                    AppBar(route = "appearance", scrollBehavior = scrollBehavior, onBack = { moreScreenState = MoreSubScreen.Main })
-                selectedNavItem.route == "more" && moreScreenState == MoreSubScreen.About ->
-                    AppBar(route = "about", scrollBehavior = scrollBehavior, onBack = { moreScreenState = MoreSubScreen.Main })
-                selectedNavItem.route != "more" ->
-                    AppBar(route = selectedNavItem.route, scrollBehavior = scrollBehavior)
-            }
-        },
-        bottomBar = {
-            NavBar(
-                selectedIndex = selectedIndex,
-                onItemSelected = {
-                    selectedIndex = it
-                    if (navItems[it].route == "more") {
-                        moreScreenState = MoreSubScreen.Main
-                    }
+    IT140P_SPARKTheme(
+        darkTheme = when (themeMode) {
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        }
+    ) {
+        ScaffoldLayout(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            topBar = {
+                when {
+                    selectedNavItem.route == "more" && moreScreenState == MoreSubScreen.Appearance ->
+                        AppBar(route = "appearance", scrollBehavior = scrollBehavior, onBack = { moreScreenState = MoreSubScreen.Main })
+                    selectedNavItem.route == "more" && moreScreenState == MoreSubScreen.About ->
+                        AppBar(route = "about", scrollBehavior = scrollBehavior, onBack = { moreScreenState = MoreSubScreen.Main })
+                    selectedNavItem.route != "more" ->
+                        AppBar(route = selectedNavItem.route, scrollBehavior = scrollBehavior)
                 }
-            )
-        },
-    ) { padding ->
-        when (selectedNavItem.route) {
-            "schedule" -> ScheduleScreen(studentId, padding)
-            "enroll" -> EnrollmentScreen(studentId, padding)
-            "billing" -> BillingScreen(padding)
-            "records" -> RecordsScreen(padding)
-            "more" -> MoreScreen(
-                currentScreen = moreScreenState,
-                onNavigate = { moreScreenState = it },
-                padding = padding
-            )
+            },
+            bottomBar = {
+                NavBar(
+                    selectedIndex = selectedIndex,
+                    onItemSelected = {
+                        selectedIndex = it
+                        if (navItems[it].route == "more") {
+                            moreScreenState = MoreSubScreen.Main
+                        }
+                    }
+                )
+            },
+        ) { padding ->
+            when (selectedNavItem.route) {
+                "schedule" -> ScheduleScreen(studentId, padding)
+                "enroll" -> EnrollmentScreen(studentId, padding)
+                "billing" -> BillingScreen(padding)
+                "records" -> RecordsScreen(padding)
+                "more" -> MoreScreen(
+                    currentScreen = moreScreenState,
+                    onNavigate = { moreScreenState = it },
+                    padding = padding,
+                    themeMode = themeMode,
+                    onThemeChange = { themeMode = it }
+                )
+            }
         }
     }
 }
