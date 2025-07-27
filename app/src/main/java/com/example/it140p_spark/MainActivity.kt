@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.it140p_spark.presentation.MoreScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,6 +66,7 @@ fun App(studentId: String) {
             "enroll" -> EnrollmentScreen(studentId, padding)
             "billing" -> BillingScreen(padding)
             "records" -> RecordsScreen(padding)
+            "more" -> MoreScreen(padding)
         }
     }
 }
