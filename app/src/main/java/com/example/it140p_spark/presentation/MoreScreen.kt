@@ -2,7 +2,6 @@ package com.example.it140p_spark.presentation
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,11 +31,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.it140p_spark.R
+import com.example.it140p_spark.LoginActivity
 
-// Data class for list items
 private data class MoreItem(val label: String, val icon: ImageVector)
 
 private val moreItems = listOf(
@@ -46,7 +46,6 @@ private val moreItems = listOf(
     MoreItem("Sign out", Icons.Outlined.ExitToApp)
 )
 
-// Navigation state for MoreScreen
 sealed class MoreSubScreen {
     object Main : MoreSubScreen()
     object Appearance : MoreSubScreen()
@@ -150,7 +149,9 @@ fun MainScreen(onNavigate: (MoreSubScreen) -> Unit, modifier: Modifier = Modifie
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://mmcl.edu.ph"))
                                 context.startActivity(intent)
                             }
-                            // TODO: handle Sign out
+                            "Sign out" -> {
+                                signOutUser(context)
+                            }
                         }
                     }
                     .height(56.dp)
@@ -187,4 +188,11 @@ fun MoreScreen(
             AboutScreen(modifier = modifier, padding = padding)
         }
     }
+}
+
+fun signOutUser(context: android.content.Context) {
+    val intent = Intent(context, LoginActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+    context.startActivity(intent)
 }
