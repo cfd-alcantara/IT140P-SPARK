@@ -115,16 +115,18 @@ fun scheduleToSimpleScheduleEvent(schedule: Schedule, color: Color): SimpleSched
 fun StudentScheduleTimetable(
     context: Context,
     studentID: String,
-    httpClient: HttpClient
+    httpClient: HttpClient,
+    screen: String
 ) {
     var events by remember { mutableStateOf<List<SimpleScheduleEvent>>(emptyList()) }
     val containerColor = MaterialTheme.colorScheme.primaryContainer
     var showEvents by remember { mutableStateOf(false) }
 
     // Add a 1 second delay before showing events to allow theme/colors to settle
-    LaunchedEffect(studentID, containerColor) {
+    LaunchedEffect(studentID, containerColor, screen) {
         showEvents = false
-        val schedule = fetchStudentSchedule(context, httpClient, studentID)
+        val schedule = fetchStudentSchedule(context, httpClient, studentID, screen)
+
         delay(300)
         events = schedule.mapNotNull { scheduleToSimpleScheduleEvent(it, containerColor) }
         showEvents = true
@@ -409,9 +411,13 @@ fun formatTimeSlot(time: Float): String {
     return localTime.format(formatter)
 }
 
-suspend fun fetchStudentSchedule(context: Context, httpClient: HttpClient, studentID: String): List<Schedule> {
+suspend fun fetchStudentSchedule(context: Context, httpClient: HttpClient, studentID: String, screen: String): List<Schedule> {
     return try {
-        val fullUrl = "${SERVER_URL}get_studentSchedule.php?StudentID=${studentID}"
+        val fullUrl = when (screen) {
+            "Schedule" -> "${SERVER_URL}get_studentSchedule.php?StudentID=${studentID}"
+            "Section" -> "${SERVER_URL}get_sectionSchedule.php?StudentID=${studentID}"
+            else -> throw IllegalArgumentException("Unknown screen: $screen")
+        }
         val response: HttpResponse = httpClient.get(fullUrl)
         val responseBodyString = response.bodyAsText()
         if (response.status.value == 200) {

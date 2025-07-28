@@ -13,11 +13,13 @@ import io.ktor.client.HttpClient
 *        else, will display a message that "you are not enrolled" */
 @Composable
 fun ScheduleScreen(studentId: String, padding: PaddingValues) {
+    var screen = "Schedule"
     Box(modifier = Modifier.padding(padding)) {
         StudentScheduleTimetable(
             context = LocalContext.current,
             studentID = studentId, // Use dynamic studentId
-            httpClient = HttpClient() // Reuse or inject your client
+            httpClient = HttpClient(), // Reuse or inject your client
+            screen
         )
     }
 }
