@@ -1,4 +1,4 @@
-package com.example.it140p_spark.data
+package com.example.it140p_spark.data.utils
 
 // Server configurations for MMCL SPARK.
 // Just change the SERVER_IP to your local server IP address.
