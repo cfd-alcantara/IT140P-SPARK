@@ -79,7 +79,6 @@ fun AppearanceScreen(
     padding: PaddingValues = PaddingValues(),
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
-    colorMode: ColorMode = ColorMode.DEFAULT,
     onColorModeChange: (ColorMode) -> Unit = {},
     dynamicColor: Boolean = false,
     onDynamicColorChange: (Boolean) -> Unit = {},
@@ -440,7 +439,6 @@ fun MoreScreen(
     padding: PaddingValues = PaddingValues(),
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
-    colorMode: ColorMode = ColorMode.DEFAULT,
     onColorModeChange: (ColorMode) -> Unit = {},
     dynamicColor: Boolean = false,
     onDynamicColorChange: (Boolean) -> Unit = {},
@@ -455,7 +453,6 @@ fun MoreScreen(
                 padding = padding,
                 themeMode = themeMode,
                 onThemeChange = onThemeChange,
-                colorMode = colorMode,
                 onColorModeChange = onColorModeChange,
                 dynamicColor = dynamicColor,
                 onDynamicColorChange = onDynamicColorChange
