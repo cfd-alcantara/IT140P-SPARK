@@ -203,12 +203,6 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Student Enlistment",
-                            fontSize = 28.sp,
-                            style = MaterialTheme.typography.headlineLarge,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                        Text(
                             text = "Enrolling for Student ID: $currentStudentId",
                             fontSize = 18.sp,
                             style = MaterialTheme.typography.bodyLarge,

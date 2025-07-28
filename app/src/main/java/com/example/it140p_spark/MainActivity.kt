@@ -51,7 +51,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/* todo: save current screen state when phone is rotated to landscape/portrait */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(studentId: String) {

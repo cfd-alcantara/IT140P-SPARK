@@ -52,45 +52,43 @@ fun AppBar(
             TopAppBar(
                 scrollBehavior = scrollBehavior,
                 title = {
-                    if (isSearching) {
-                        LaunchedEffect(Unit) {
-                            searchFocus.requestFocus()
-                        }
-                        SearchField(
-                            searchQuery = searchQuery,
-                            onChangeSearchQuery = { searchQuery = it },
-                            onSearch = { /* todo: this is where the search logic comes in */ },
-                            modifier = Modifier.focusRequester(searchFocus)
-                        )
-                    } else {
-                        Text(text = "Enroll")
-                    }
+//                    if (isSearching) {
+//                        LaunchedEffect(Unit) {
+//                            searchFocus.requestFocus()
+//                        }
+//                        SearchField(
+//                            searchQuery = searchQuery,
+//                            onChangeSearchQuery = { searchQuery = it },
+//                            onSearch = { /* todo: this is where the search logic comes in */ },
+//                            modifier = Modifier.focusRequester(searchFocus)
+//                        )
+//                    } else {
+//                        Text(text = "Enroll")
+//                    }
+                    Text(text = "Enroll")
                 },
                 navigationIcon = {
-                    if (isSearching) {
-                        IconButton(onClick = {
-                            isSearching = false
-                            searchQuery = ""
-                        }) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close Search")
-                        }
-                    }
+//                    if (isSearching) {
+//                        IconButton(onClick = {
+//                            isSearching = false
+//                            searchQuery = ""
+//                        }) {
+//                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close Search")
+//                        }
+//                    }
                 },
                 actions = {
-                    if (!isSearching) {
-                        IconButton(onClick = { isSearching = true }) {
-                            Icon(imageVector = Icons.Filled.Search, contentDescription = "Open Search")
-                        }
-                    } else {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(imageVector = Icons.Filled.Close, contentDescription = "Clear Search")
-                            }
-                        }
-                    }
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.FilterList, contentDescription = "Open Filter Drawer")
-                    }
+//                    if (!isSearching) {
+//                        IconButton(onClick = { isSearching = true }) {
+//                            Icon(imageVector = Icons.Filled.Search, contentDescription = "Open Search")
+//                        }
+//                    } else {
+//                        if (searchQuery.isNotEmpty()) {
+//                            IconButton(onClick = { searchQuery = "" }) {
+//                                Icon(imageVector = Icons.Filled.Close, contentDescription = "Clear Search")
+//                            }
+//                        }
+//                    }
                 }
             )
         }
@@ -117,11 +115,6 @@ fun AppBar(
             TopAppBar(
                 scrollBehavior = scrollBehavior,
                 title = { Text(text = "Records") },
-                navigationIcon = {
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Open Menu")
-                    }
-                },
                 actions = {
                     IconButton(onClick = { /* do something*/ }) {
                         Icon(imageVector = Icons.Filled.Favorite, contentDescription = "Open Likes")
