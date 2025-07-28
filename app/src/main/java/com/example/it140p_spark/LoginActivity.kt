@@ -26,6 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.it140p_spark.data.utils.SERVER_URL
 import com.example.it140p_spark.ui.theme.IT140P_SPARKTheme
+import com.example.it140p_spark.ui.theme.LightColorScheme
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -71,7 +74,7 @@ class LoginActivity : ComponentActivity() {
             IT140P_SPARKTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = LightColorScheme.background
                 ) {
                     Login()
                 }
@@ -130,7 +133,11 @@ fun Login() {
             verticalArrangement = Arrangement.spacedBy(16.dp, alignment = Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("MMCL Spark", style = MaterialTheme.typography.headlineLarge)
+            Text(
+                "MMCL Spark",
+                style = MaterialTheme.typography.headlineLarge,
+                color = LightColorScheme.onBackground
+            )
             OutlinedTextField(
                 value = username,
                 onValueChange = {
@@ -140,12 +147,12 @@ fun Login() {
                         usernameSupportingText = "*enter your MCL live email address"
                     }
                 },
-                label = { Text("Email*") },
+                label = { Text("Email*", color = LightColorScheme.onBackground) },
                 isError = usernameError,
                 supportingText = {
                     Text(
                         usernameSupportingText,
-                        color = if (usernameError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                        color = if (usernameError) LightColorScheme.error else LightColorScheme.onBackground
                     )
                 },
                 trailingIcon = {
@@ -153,7 +160,7 @@ fun Login() {
                         Icon(
                             imageVector = Icons.Filled.Error,
                             contentDescription = "Error",
-                            tint = MaterialTheme.colorScheme.error
+                            tint = LightColorScheme.error
                         )
                     }
                 },
@@ -165,7 +172,9 @@ fun Login() {
                 ),
                 keyboardActions = KeyboardActions(
                     onNext = { passwordFocusRequester.requestFocus() }
-                )
+                ),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = LightColorScheme.onBackground),
+                colors = lightModeOutlinedTextFieldColors()
             )
             OutlinedTextField(
                 value = password,
@@ -176,12 +185,12 @@ fun Login() {
                         passwordSupportingText = "*enter your password"
                     }
                 },
-                label = { Text("Password*") },
+                label = { Text("Password*", color = LightColorScheme.onBackground) },
                 isError = passwordError,
                 supportingText = {
                     Text(
                         passwordSupportingText,
-                        color = if (passwordError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                        color = if (passwordError) LightColorScheme.error else LightColorScheme.onBackground
                     )
                 },
                 trailingIcon = {
@@ -189,7 +198,7 @@ fun Login() {
                         Icon(
                             imageVector = Icons.Filled.Error,
                             contentDescription = "Error",
-                            tint = MaterialTheme.colorScheme.error
+                            tint = LightColorScheme.error
                         )
                     }
                 },
@@ -226,7 +235,9 @@ fun Login() {
                             }
                         }
                     }
-                )
+                ),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = LightColorScheme.onBackground),
+                colors = lightModeOutlinedTextFieldColors()
             )
             Button(
                 onClick = {
@@ -243,7 +254,7 @@ fun Login() {
                         }
                     )
                     if (!hasError) {
-                        coroutineScope.launch {
+                        kotlinx.coroutines.runBlocking {
                             performLoginAttempt(
                                 httpClient,
                                 username,
@@ -253,7 +264,11 @@ fun Login() {
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = LightColorScheme.primary,
+                    contentColor = LightColorScheme.onPrimary
+                )
             ) {
                 Text("Sign In", Modifier.padding(vertical = 8.dp))
             }
@@ -353,3 +368,25 @@ private fun validateAndSetErrors(
     }
     return hasError
 }
+
+@Composable
+fun lightModeOutlinedTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = LightColorScheme.onBackground,
+    unfocusedTextColor = LightColorScheme.onBackground,
+    disabledTextColor = LightColorScheme.onBackground.copy(alpha = 0.38f),
+    errorTextColor = LightColorScheme.error,
+    focusedContainerColor = LightColorScheme.background,
+    unfocusedContainerColor = LightColorScheme.background,
+    disabledContainerColor = LightColorScheme.background,
+    errorContainerColor = LightColorScheme.background,
+    cursorColor = LightColorScheme.primary,
+    errorCursorColor = LightColorScheme.error,
+    focusedBorderColor = LightColorScheme.primary,
+    unfocusedBorderColor = LightColorScheme.outline,
+    disabledBorderColor = LightColorScheme.outline.copy(alpha = 0.38f),
+    errorBorderColor = LightColorScheme.error,
+    focusedLabelColor = LightColorScheme.primary,
+    unfocusedLabelColor = LightColorScheme.onBackground,
+    disabledLabelColor = LightColorScheme.onBackground.copy(alpha = 0.38f),
+    errorLabelColor = LightColorScheme.error
+)
