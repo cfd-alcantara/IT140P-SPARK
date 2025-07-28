@@ -23,7 +23,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -207,17 +206,6 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                             fontSize = 18.sp,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                        OutlinedTextField(
-                            value = searchCourseQuery,
-                            onValueChange = { newValue ->
-                                searchCourseQuery = newValue
-                            },
-                            label = { Text("Search Courses") },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp)
                         )
                         Text(
                             text = "List of Available Courses",
