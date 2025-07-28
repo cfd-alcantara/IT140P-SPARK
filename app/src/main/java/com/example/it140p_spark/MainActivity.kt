@@ -36,6 +36,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.core.view.WindowCompat
 import android.view.WindowInsetsController
 import com.example.it140p_spark.data.utils.ColorMode
+import io.ktor.client.HttpClient
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -157,7 +158,7 @@ fun App(studentId: String) {
                 "schedule" -> ScheduleScreen(studentId, padding)
                 "enroll" -> EnrollmentScreen(studentId, padding)
                 "billing" -> BillingScreen(padding)
-                "records" -> RecordsScreen(padding)
+                "records" -> RecordsScreen(studentId, padding)
                 "more" -> MoreScreen(
                     currentScreen = moreScreenState,
                     onNavigate = { moreScreenState = it },
