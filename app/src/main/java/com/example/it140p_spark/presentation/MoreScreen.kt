@@ -55,16 +55,25 @@ import androidx.compose.material3.DividerDefaults
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import com.example.it140p_spark.data.utils.ColorMode
+import com.example.it140p_spark.ui.components.ListItem
 import com.example.it140p_spark.ui.theme.LightColorScheme
 import com.example.it140p_spark.ui.theme.DarkColorScheme
 
 private data class MoreItem(val label: String, val icon: ImageVector)
+private data class AboutItem(val main: String, val sub: String)
 
 private val moreItems = listOf(
     MoreItem("Appearance", Icons.Outlined.ColorLens),
     MoreItem("About", Icons.Outlined.Info),
     MoreItem("Help", Icons.AutoMirrored.Outlined.HelpOutline),
     MoreItem("Sign out", Icons.AutoMirrored.Outlined.ExitToApp)
+)
+
+private val aboutItems = listOf(
+    AboutItem("About", "SPARK (Student Portal for Academic Resources and Knowledge) is a mobile student portal app based on OneMCL. It is designed by MMCL students and is made for MMCL students."),
+    AboutItem("Version", "1.0.0"),
+    AboutItem("Developers", "Carl Francis Alcantara, Jan Gabriel Rea, Julian Peter Gerona, Luis Gerard Tiongco"),
+    AboutItem("Disclaimer", "This app is made in partial fulfillment of IT140P. All resources and data are for educational purposes only.")
 )
 
 sealed class MoreSubScreen {
@@ -326,15 +335,8 @@ fun AppColorThemePreviewItem(
 
 @Composable
 fun AboutScreen(modifier: Modifier = Modifier, padding: PaddingValues = PaddingValues()) {
-    val aboutItems = listOf(
-        "About" to "SPARK (Student Portal for Academic Resources and Knowledge) is a mobile student portal app based on OneMCL. It is designed by MMCL students and is made for MMCL students.",
-        "Version" to "1.0.0",
-        "Developers" to "Carl Francis Alcantara, Jan Gabriel Rea, Julian Peter Gerona, Luis Gerard Tiongco",
-        "Disclaimer" to "This app is made in partial fulfillment of IT140P. All resources and data are for educational purposes only.",
-    )
     LazyColumn(
         modifier = modifier.padding(padding),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
             Column(
@@ -360,10 +362,12 @@ fun AboutScreen(modifier: Modifier = Modifier, padding: PaddingValues = PaddingV
             HorizontalDivider()
         }
         items(aboutItems) { (main, sub) ->
-            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                Text(main, style = MaterialTheme.typography.titleMedium)
-                Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            ListItem(
+                main = main,
+                sub = sub,
+                onClick = {},
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }
@@ -372,7 +376,6 @@ fun AboutScreen(modifier: Modifier = Modifier, padding: PaddingValues = PaddingV
 fun MainScreen(onNavigate: (MoreSubScreen) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
     ) {
         item {
@@ -399,34 +402,28 @@ fun MainScreen(onNavigate: (MoreSubScreen) -> Unit, modifier: Modifier = Modifie
             HorizontalDivider()
         }
         items(moreItems) { item ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable {
-                        when (item.label) {
-                            "Appearance" -> onNavigate(MoreSubScreen.Appearance)
-                            "About" -> onNavigate(MoreSubScreen.About)
-                            "Help" -> {
-                                val intent = Intent(Intent.ACTION_VIEW, "https://mmcl.edu.ph".toUri())
-                                context.startActivity(intent)
-                            }
-                            "Sign out" -> {
-                                signOutUser(context)
-                            }
+            ListItem(
+                main = item.label,
+                sub = when (item.label) {
+                    "Appearance" -> "Theme mode and color"
+                    "Help" -> "Go to MMCL website"
+                    else -> null
+                },
+                icon = item.icon,
+                onClick = {
+                    when (item.label) {
+                        "Appearance" -> onNavigate(MoreSubScreen.Appearance)
+                        "About" -> onNavigate(MoreSubScreen.About)
+                        "Help" -> {
+                            val intent = Intent(Intent.ACTION_VIEW, "https://mmcl.edu.ph".toUri())
+                            context.startActivity(intent)
+                        }
+                        "Sign out" -> {
+                            signOutUser(context)
                         }
                     }
-                    .height(56.dp)
-                    .padding(horizontal = 16.dp)
-            ) {
-                Icon(
-                    imageVector = item.icon,
-                    contentDescription = item.label,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(item.label, style = MaterialTheme.typography.titleMedium)
-            }
+                }
+            )
         }
     }
 }
