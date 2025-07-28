@@ -9,8 +9,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import io.ktor.client.HttpClient
 
-/* todo: display the finalized list of courses in this Screen
-*        else, will display a message that "you are not enrolled" */
 @Composable
 fun ScheduleScreen(studentId: String, padding: PaddingValues) {
     Box(modifier = Modifier.padding(padding)) {
