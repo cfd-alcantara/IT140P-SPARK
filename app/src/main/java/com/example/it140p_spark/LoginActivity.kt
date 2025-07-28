@@ -45,7 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.it140p_spark.data.SERVER_URL
+import com.example.it140p_spark.data.utils.SERVER_URL
 import com.example.it140p_spark.ui.theme.IT140P_SPARKTheme
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO

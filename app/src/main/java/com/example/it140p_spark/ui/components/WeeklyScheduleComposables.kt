@@ -36,7 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalDensity
-import com.example.it140p_spark.data.SERVER_URL
+import com.example.it140p_spark.data.utils.SERVER_URL
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Canvas
 
