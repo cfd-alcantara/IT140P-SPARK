@@ -451,7 +451,8 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                     .fillMaxWidth()
                                     .height(600.dp) // Or try different values
                             ) {
-                                StudentScheduleTimetable(context, currentStudentId, httpClient)
+                                var screen = "Section"
+                                StudentScheduleTimetable(context, currentStudentId, httpClient, screen)
                             }
                         }
                     }
