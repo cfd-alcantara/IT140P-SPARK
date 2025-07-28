@@ -446,32 +446,12 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                             )
                         }
                         item {
-                            StudentScheduleTimetable(context, currentStudentId, httpClient)
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        if (enlistmentId != null) {
-                                            selectedCourseSection.forEach { course ->
-                                                val courseId = course.courseId
-                                                val sectionId = course.sectionId ?: ""
-                                                SectioningFunctions.ktorInsertSection(context, httpClient, enlistmentId, courseId, sectionId)
-                                            }
-                                            context.toast("Sections submitted.")
-                                        } else {
-                                            context.toast("Enlistment ID not found.")
-                                        }
-                                    }
-                                },
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
-                                shape = RoundedCornerShape(12.dp)
+                                    .height(600.dp) // Or try different values
                             ) {
-                                Text("Confirm Section Selection")
+                                StudentScheduleTimetable(context, currentStudentId, httpClient)
                             }
                         }
                     }
@@ -551,7 +531,23 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                             }
                                             selectedSectionIds.add(uniqueId)
                                         }
-                                        context.toast("Suggested schedule applied.")
+
+                                        // Submit to backend immediately
+                                        coroutineScope.launch {
+                                            if (enlistmentId != null) {
+                                                selectedCourseSection.forEach { course ->
+                                                    val courseId = course.courseId
+                                                    val sectionId = course.sectionId ?: ""
+                                                    SectioningFunctions.ktorInsertSection(
+                                                        context, httpClient, enlistmentId, courseId, sectionId
+                                                    )
+                                                }
+                                                context.toast("Suggested schedule applied and submitted.")
+                                            } else {
+                                                context.toast("Enlistment ID missing.")
+                                            }
+                                        }
+
                                         showSuggestionDialog = false
                                     }
                                 ) {
@@ -559,7 +555,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                                 }
                             },
                             dismissButton = {
-                                Button(onClick = { showDialog = false }) {
+                                Button(onClick = { showSuggestionDialog = false }) {
                                     Text("Cancel")
                                 }
                             }
