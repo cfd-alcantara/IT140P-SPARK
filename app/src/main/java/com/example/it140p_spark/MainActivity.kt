@@ -156,7 +156,7 @@ fun App(studentId: String) {
             when (selectedNavItem.route) {
                 "schedule" -> ScheduleScreen(studentId, padding)
                 "enroll" -> EnrollmentScreen(studentId, padding)
-                "billing" -> BillingScreen(padding)
+                "billing" -> BillingScreen(studentId, padding)
                 "records" -> RecordsScreen(padding)
                 "more" -> MoreScreen(
                     currentScreen = moreScreenState,
