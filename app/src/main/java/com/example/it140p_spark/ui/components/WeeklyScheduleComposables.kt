@@ -3,6 +3,7 @@ package com.example.it140p_spark.ui.components
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
@@ -27,7 +28,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -36,7 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalDensity
-import com.example.it140p_spark.data.utils.SERVER_URL
+import com.example.it140p_spark.data.SERVER_URL
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.Canvas
 
 enum class Weekday(val display: String) {
     Monday("Monday"),
@@ -44,7 +46,8 @@ enum class Weekday(val display: String) {
     Wednesday("Wednesday"),
     Thursday("Thursday"),
     Friday("Friday"),
-    Saturday("Saturday");
+    Saturday("Saturday"),
+    Sunday("Sunday");
 }
 
 data class SimpleScheduleEvent(
@@ -85,6 +88,7 @@ fun mapDayStringToEnum(day: String): Weekday? {
         "thursday" -> Weekday.Thursday
         "friday" -> Weekday.Friday
         "saturday" -> Weekday.Saturday
+        "sunday" -> Weekday.Sunday
         else -> null
     }
 }
@@ -115,13 +119,20 @@ fun StudentScheduleTimetable(
 ) {
     var events by remember { mutableStateOf<List<SimpleScheduleEvent>>(emptyList()) }
     val containerColor = MaterialTheme.colorScheme.primaryContainer
+    var showEvents by remember { mutableStateOf(false) }
 
-    LaunchedEffect(studentID) {
+    // Add a 1 second delay before showing events to allow theme/colors to settle
+    LaunchedEffect(studentID, containerColor) {
+        showEvents = false
         val schedule = fetchStudentSchedule(context, httpClient, studentID)
+        delay(300)
         events = schedule.mapNotNull { scheduleToSimpleScheduleEvent(it, containerColor) }
+        showEvents = true
     }
 
-    WeeklySchedule(events = events)
+    if (showEvents) {
+        WeeklySchedule(events = events)
+    }
 }
 
 // --- SimpleScheduleEventBox (grid style) ---
@@ -257,6 +268,16 @@ fun WeeklySchedule(
     var sidebarWidth by remember { mutableIntStateOf(0) }
     var headerHeight by remember {mutableIntStateOf(0) }
 
+    val colorPrimary = MaterialTheme.colorScheme.primary
+    // --- Current time state ---
+    var now by remember { mutableStateOf(LocalTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = LocalTime.now()
+            delay(60_000)
+        }
+    }
+
     Box (modifier = modifier) {
         Column {
             // Header Row
@@ -287,29 +308,8 @@ fun WeeklySchedule(
                         .weight(1f)
                         .verticalScroll(verticalScrollState)
                         .horizontalScroll(horizontalScrollState)
-                        .drawBehind {
-                            // Horizontal lines for each interval
-                            repeat(hoursCount + 1) { i ->
-                                val y = i * hourHeight.toPx()
-                                drawLine(
-                                    color = Color.LightGray,
-                                    start = Offset(0f, y),
-                                    end = Offset(size.width, y),
-                                    strokeWidth = 1.dp.toPx()
-                                )
-                            }
-                            // Vertical day dividers
-                            repeat(Weekday.entries.size + 1) { i ->
-                                val x = i * dayWidth.toPx()
-                                drawLine(
-                                    color = Color.LightGray,
-                                    start = Offset(x, 0f),
-                                    end = Offset(x, size.height),
-                                    strokeWidth = 1.dp.toPx()
-                                )
-                            }
-                        }
                 ) {
+                    // Draw events (below)
                     Layout(
                         content = {
                             events.forEach { event ->
@@ -344,6 +344,54 @@ fun WeeklySchedule(
                         layout(gridWidth, gridHeight) {
                             placeables.forEach { (placeable, left, top) ->
                                 placeable.place(left, top)
+                            }
+                        }
+                    }
+                    // Draw time line and circle (above events)
+                    Canvas(modifier = Modifier.matchParentSize()) {
+                        // Horizontal lines for each interval
+                        repeat(hoursCount + 1) { i ->
+                            val y = i * hourHeight.toPx()
+                            drawLine(
+                                color = Color.LightGray,
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                        // Vertical day dividers
+                        repeat(Weekday.entries.size + 1) { i ->
+                            val x = i * dayWidth.toPx()
+                            drawLine(
+                                color = Color.LightGray,
+                                start = Offset(x, 0f),
+                                end = Offset(x, size.height),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                        // Draw current time line if within range
+                        val nowMinutes = now.hour * 60 + now.minute
+                        val minMinutes = minTime.hour * 60 + minTime.minute
+                        val maxMinutes = maxTime.hour * 60 + maxTime.minute
+                        if (nowMinutes in minMinutes..maxMinutes) {
+                            val y = ((nowMinutes - minMinutes) / intervalMinutes.toFloat()) * hourHeight.toPx()
+                            // Draw the current time line
+                            drawLine(
+                                color = colorPrimary,
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                strokeWidth = 2.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                            // Draw the current time circle for the current day
+                            val todayIdx = java.time.LocalDate.now().dayOfWeek.value - 1 // 0=Monday
+                            if (todayIdx in 0 until Weekday.entries.size) {
+                                val x = todayIdx * dayWidth.toPx() + 5.dp.toPx()
+                                drawCircle(
+                                    color = colorPrimary,
+                                    radius = 5.dp.toPx(),
+                                    center = Offset(x, y)
+                                )
                             }
                         }
                     }

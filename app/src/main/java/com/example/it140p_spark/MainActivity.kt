@@ -1,5 +1,6 @@
 package com.example.it140p_spark
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,10 +30,12 @@ import com.example.it140p_spark.data.utils.ThemeMode
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.launch
 import com.example.it140p_spark.data.utils.ThemePreferenceManager
+import androidx.compose.runtime.SideEffect
+import androidx.core.view.WindowCompat
+import android.view.WindowInsetsController
+import com.example.it140p_spark.data.utils.ColorMode
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,15 +51,21 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/* todo: save current screen state when phone is rotated to landscape/portrait */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(studentId: String) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val themeFlow = remember { ThemePreferenceManager.themeModeFlow(context) }
     val persistedTheme by themeFlow.collectAsState(initial = ThemeMode.SYSTEM)
     var themeMode by remember { mutableStateOf(persistedTheme) }
+
+    // Observe ColorMode from DataStore
+    val colorModeFlow = remember { ThemePreferenceManager.colorModeFlow(context) }
+    val persistedColorMode by colorModeFlow.collectAsState(initial = ColorMode.DEFAULT)
+    var colorMode by remember { mutableStateOf(persistedColorMode) }
+
+    // Add dynamicColor state (sync with colorMode)
+    var dynamicColor by remember { mutableStateOf(colorMode == ColorMode.DYNAMIC) }
 
     // Save theme to DataStore when changed, but only if it is different from persistedTheme
     LaunchedEffect(themeMode) {
@@ -65,10 +74,43 @@ fun App(studentId: String) {
         }
     }
 
+    // Save colors to DataStore when changed
+    LaunchedEffect(colorMode) {
+        if (colorMode != persistedColorMode) {
+            ThemePreferenceManager.setColorMode(context, colorMode)
+        }
+        dynamicColor = colorMode == ColorMode.DYNAMIC
+    }
+
     // Update themeMode when persistedTheme changes (e.g., after app restart)
     LaunchedEffect(persistedTheme) {
-        if (themeMode != persistedTheme) {
-            themeMode = persistedTheme
+        themeMode = persistedTheme
+    }
+
+    // Set system bar colors and icon appearance based on theme
+    val isDark = when (themeMode) {
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+    val window = (context as? ComponentActivity)?.window
+    SideEffect {
+        window?.let {
+            val decorView = it.decorView
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Android 14+ (API 34): Use setSystemBarsAppearance
+                val controller = it.insetsController
+                if (controller != null) {
+                    val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    val appearance = if (!isDark) mask else 0
+                    controller.setSystemBarsAppearance(appearance, mask)
+                }
+            } else {
+                // Pre-Android 14: Use deprecated APIs
+                val insetsController = WindowCompat.getInsetsController(it, decorView)
+                insetsController.isAppearanceLightStatusBars = !isDark
+                insetsController.isAppearanceLightNavigationBars = !isDark
+            }
         }
     }
 
@@ -84,7 +126,8 @@ fun App(studentId: String) {
             ThemeMode.SYSTEM -> isSystemInDarkTheme()
             ThemeMode.LIGHT -> false
             ThemeMode.DARK -> true
-        }
+        },
+        dynamicColor = dynamicColor
     ) {
         ScaffoldLayout(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -120,7 +163,10 @@ fun App(studentId: String) {
                     onNavigate = { moreScreenState = it },
                     padding = padding,
                     themeMode = themeMode,
-                    onThemeChange = { themeMode = it }
+                    onThemeChange = { themeMode = it },
+                    onColorModeChange = { colorMode = it },
+                    dynamicColor = dynamicColor,
+                    onDynamicColorChange = { dynamicColor = it; colorMode = if (it) ColorMode.DYNAMIC else ColorMode.DEFAULT }
                 )
             }
         }

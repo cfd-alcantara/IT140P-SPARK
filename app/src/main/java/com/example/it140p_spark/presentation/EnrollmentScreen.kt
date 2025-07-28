@@ -23,7 +23,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -62,7 +61,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.RadioButton
-import com.example.it140p_spark.data.utils.SERVER_URL
+import com.example.it140p_spark.data.SERVER_URL
 import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import com.example.it140p_spark.data.models.*
 import com.example.it140p_spark.data.functions.EnlistmentFunctions
@@ -203,27 +202,10 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Student Enlistment",
-                            fontSize = 28.sp,
-                            style = MaterialTheme.typography.headlineLarge,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                        Text(
                             text = "Enrolling for Student ID: $currentStudentId",
                             fontSize = 18.sp,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                        OutlinedTextField(
-                            value = searchCourseQuery,
-                            onValueChange = { newValue ->
-                                searchCourseQuery = newValue
-                            },
-                            label = { Text("Search Courses") },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp)
                         )
                         Text(
                             text = "List of Available Courses",
