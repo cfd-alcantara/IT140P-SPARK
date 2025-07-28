@@ -31,5 +31,6 @@ data class StudentFinalizationDataResponse(
 data class FinalizeEnrollmentResponse(
     val status: String,
     val message: String? = null,
-    val enrollment_id: Int? = null
+    val enrollment_id: Int? = null,
+    val calculated_cost: Int? = null
 )

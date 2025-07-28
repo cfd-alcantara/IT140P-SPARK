@@ -36,7 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalDensity
-import com.example.it140p_spark.data.SERVER_URL
+import com.example.it140p_spark.data.utils.SERVER_URL
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Canvas
 
@@ -133,7 +133,7 @@ fun StudentScheduleTimetable(
     }
 
     if (showEvents) {
-        WeeklySchedule(events = events)
+        WeeklySchedule(events = mergeAdjacentEvents(events))
     }
 }
 
@@ -437,4 +437,29 @@ suspend fun fetchStudentSchedule(context: Context, httpClient: HttpClient, stude
         context.toast("Fetch failed: ${e.localizedMessage}")
         emptyList()
     }
+}
+
+// --- Merge adjacent events function ---
+fun mergeAdjacentEvents(events: List<SimpleScheduleEvent>): List<SimpleScheduleEvent> {
+    if (events.isEmpty()) return emptyList()
+    val sorted = events.sortedWith(compareBy({ it.day.ordinal }, { it.name }, { it.startHour }))
+    val merged = mutableListOf<SimpleScheduleEvent>()
+    var current = sorted.first()
+    for (i in 1 until sorted.size) {
+        val next = sorted[i]
+        if (
+            current.name == next.name &&
+            current.day == next.day &&
+            current.endHour == next.startHour &&
+            current.color == next.color
+        ) {
+            // Merge with current
+            current = current.copy(endHour = next.endHour)
+        } else {
+            merged.add(current)
+            current = next
+        }
+    }
+    merged.add(current)
+    return merged
 }
