@@ -10,20 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Modifier
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,15 +28,33 @@ fun AppBar(
 ) {
     when (route) {
         "schedule" -> {
+            var showNotificationDialog by remember { mutableStateOf(false) }
             TopAppBar(
                 scrollBehavior = scrollBehavior,
                 title = { Text(text = "Schedule") },
                 actions = {
-                    IconButton(onClick = { /* do something*/ }) {
+                    IconButton(onClick = { showNotificationDialog = true }) {
                         Icon(imageVector = Icons.Filled.Notifications, contentDescription = "Open Notifications")
                     }
                 }
             )
+            if (showNotificationDialog) {
+                AlertDialog(
+                    onDismissRequest = { showNotificationDialog = false },
+                    title = { Text("Allow schedule notifications") },
+                    text = { Text("By accepting, the app will notify you 15 minutes before your schedule is about to start.") },
+                    confirmButton = {
+                        TextButton(onClick = { showNotificationDialog = false }) {
+                            Text("Accept")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showNotificationDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
         "enroll" -> {
             var isSearching by rememberSaveable { mutableStateOf(false) }
@@ -95,34 +107,13 @@ fun AppBar(
         "billing" -> {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
-                title = { Text(text = "Billing") },
-                navigationIcon = {
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Open Menu")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.Favorite, contentDescription = "Open Likes")
-                    }
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.Settings, contentDescription = "Open Settings")
-                    }
-                }
+                title = { Text(text = "Billing") }
             )
         }
         "records" -> {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
-                title = { Text(text = "Records") },
-                actions = {
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.Favorite, contentDescription = "Open Likes")
-                    }
-                    IconButton(onClick = { /* do something*/ }) {
-                        Icon(imageVector = Icons.Filled.Settings, contentDescription = "Open Settings")
-                    }
-                }
+                title = { Text(text = "Records") }
             )
         }
         "appearance" -> {

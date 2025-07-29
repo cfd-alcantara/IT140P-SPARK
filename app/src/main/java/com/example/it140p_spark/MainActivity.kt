@@ -87,6 +87,12 @@ fun App(studentId: String) {
         themeMode = persistedTheme
     }
 
+    // Update colorMode when persistedColorMode changes (e.g., after app restart)
+    LaunchedEffect(persistedColorMode) {
+        colorMode = persistedColorMode
+        dynamicColor = persistedColorMode == ColorMode.DYNAMIC
+    }
+
     // Set system bar colors and icon appearance based on theme
     val isDark = when (themeMode) {
         ThemeMode.DARK -> true
