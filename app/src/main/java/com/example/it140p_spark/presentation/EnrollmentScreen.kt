@@ -10,14 +10,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,9 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -53,16 +46,7 @@ import androidx.compose.material3.AlertDialog
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.RadioButton
 import com.example.it140p_spark.data.utils.SERVER_URL
-import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import com.example.it140p_spark.data.models.*
 import com.example.it140p_spark.data.functions.EnlistmentFunctions
 import com.example.it140p_spark.data.functions.SectioningFunctions
@@ -77,7 +61,6 @@ fun Context.toast(message: CharSequence) {
 fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val currentStudentId = studentId
     val enlistmentIdState = remember { mutableStateOf<String?>(null) }
     val enlistmentId = enlistmentIdState.value
 
@@ -102,7 +85,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
     var showSuggestionDialog by remember { mutableStateOf(false) }
     var suggestedSchedule by remember { mutableStateOf<List<GroupedSection>>(emptyList()) }
 
-    var searchCourseQuery by remember { mutableStateOf("") }
+    val searchCourseQuery by remember { mutableStateOf("") }
 
     val httpClient = remember {
         HttpClient(CIO) {
@@ -125,10 +108,63 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
         }
     }
 
+    // --- Finalize Tab States ---
+    val finalizeEnlistedCourses = remember { mutableStateOf<List<FinalizationEnlistedCourse>>(emptyList()) }
+    var finalizeStudentTerm by remember { mutableStateOf("Loading...") }
+    val finalizePaymentTypes = listOf("Installment 1", "Installment 2", "Full Payment")
+    var finalizeSelectedPaymentType by remember { mutableStateOf(finalizePaymentTypes[0]) }
+    val finalizeEnrollmentStatuses = listOf("Not Paid")
+    val finalizeSelectedEnrollmentStatus by remember { mutableStateOf(finalizeEnrollmentStatuses[0]) }
+    var finalizeIsLoading by remember { mutableStateOf(true) }
+    var finalizeErrorMessage by remember { mutableStateOf<String?>(null) }
+    var finalizeIsSubmitting by remember { mutableStateOf(false) }
+
+    // Load finalization data when needed
+    LaunchedEffect(studentId, selectedTabIndex) {
+        if (selectedTabIndex == 2) {
+            finalizeIsLoading = true
+            finalizeErrorMessage = null
+            var rawResponseContent: String? = null
+            try {
+                val response =
+                    httpClient.get("${SERVER_URL}get_studentFinalization.php?student_id=$studentId")
+                rawResponseContent = response.bodyAsText()
+                val parsedData =
+                    Json.decodeFromString<StudentFinalizationDataResponse>(rawResponseContent)
+                if (parsedData.status == "success") {
+                    finalizeEnlistedCourses.value =
+                        parsedData.courses?.filter { it.SectionID != null } ?: emptyList()
+                    finalizeStudentTerm = parsedData.term ?: "N/A"
+                    if (finalizeEnlistedCourses.value.isEmpty()) {
+                        finalizeErrorMessage =
+                            "You have no enlisted and sectioned courses to finalize."
+                    }
+                    if (parsedData.term == null || parsedData.term.isNullOrBlank()) {
+                        val currentMessage = finalizeErrorMessage ?: ""
+                        finalizeErrorMessage =
+                            currentMessage + (if (currentMessage.isNotEmpty()) ". " else "") + "Could not retrieve student's current term."
+                        if (finalizeErrorMessage?.trim() == "") finalizeErrorMessage =
+                            "Could not retrieve student's current term."
+                    }
+                } else {
+                    finalizeErrorMessage =
+                        "Failed to load data: ${parsedData.message ?: "Unknown error"}"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                finalizeErrorMessage =
+                    "Network or parsing error loading courses: ${e.localizedMessage ?: "Unknown error"}. " +
+                            "Raw response from get_studentFinalization.php: '${rawResponseContent ?: "N/A"}'"
+            } finally {
+                finalizeIsLoading = false
+            }
+        }
+    }
+
     // LaunchedEffect to manage data fetching based on tab, search query, and refreshTrigger
     LaunchedEffect(selectedTabIndex, searchCourseQuery, refreshTrigger, selectedCourses.size) { // Add refreshTrigger here
         println("LaunchedEffect triggered. selectedTabIndex: $selectedTabIndex, searchCourseQuery: $searchCourseQuery, refreshTrigger: $refreshTrigger")
-        EnlistmentFunctions.fetchEnlistmentId(context, httpClient, currentStudentId) { fetchedId ->
+        EnlistmentFunctions.fetchEnlistmentId(context, httpClient, studentId) { fetchedId ->
             enlistmentIdState.value = fetchedId
             println("Fetched Enlistment ID: $fetchedId")
         }
@@ -139,7 +175,11 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
             println("Fetched all available courses: ${allFetchedCourses.size} courses.")
 
             // Fetch courses currently enlisted by the student
-            val enlistedCoursesFromBackend = EnlistmentFunctions.fetchCourseEnlistedSuspend(context, httpClient, currentStudentId)
+            val enlistedCoursesFromBackend = EnlistmentFunctions.fetchCourseEnlistedSuspend(
+                context,
+                httpClient,
+                studentId
+            )
             println("Fetched enlisted courses from backend: ${enlistedCoursesFromBackend.size} courses.")
 
             // Update initialEnrolledCourses (source of truth from backend)
@@ -160,7 +200,11 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
         } else if (selectedTabIndex == 1) {
             // Only fetch enlisted courses for the Section tab
-            enlistedCourses = SectioningFunctions.fetchCourseSectionsSuspend(context, httpClient, currentStudentId)
+            enlistedCourses = SectioningFunctions.fetchCourseSectionsSuspend(
+                context,
+                httpClient,
+                studentId
+            )
             println("Enlisted courses for Section tab: ${enlistedCourses.size} courses.")
         }
     }
@@ -192,611 +236,201 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                 }
             }
 
-            when (selectedTabIndex) {
-                0 -> {
-                    Column(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Enrolling for Student ID: $currentStudentId",
-                            fontSize = 18.sp,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(bottom = 16.dp)
+            // Remove the when block and directly use TabsContent
+            TabsContent(
+                selectedTabIndex = selectedTabIndex,
+                // Enlist Tab
+                currentStudentId = studentId,
+                enlistmentId = enlistmentId,
+                coursesList = coursesList,
+                stagedCoursesForAction = stagedCoursesForAction,
+                initialEnrolledCourses = initialEnrolledCourses,
+                searchCourseQuery = searchCourseQuery,
+                onSelectCourse = { course ->
+                    stagedCoursesForAction.add(course)
+                    coursesList =
+                        (coursesList.toMutableList() - course).sortedBy { c -> c.courseCode }
+                },
+                onDeselectCourse = { course ->
+                    stagedCoursesForAction.remove(course)
+                    coursesList =
+                        (coursesList.toMutableList() + course).sortedBy { c -> c.courseCode }
+                },
+                onConfirmChanges = {
+                    coroutineScope.launch {
+                        EnlistmentFunctions.processConfirmAction(
+                            context = context,
+                            httpClient = httpClient,
+                            studentId = studentId,
+                            enlistmentId = enlistmentId,
+                            initialEnrolledCourses = initialEnrolledCourses,
+                            finalSelectedCourses = stagedCoursesForAction,
+                            toast = { context.toast(it) }
                         )
-                        Text(
-                            text = "List of Available Courses",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                                .padding(8.dp)
-                        ) {
-                            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                // Display courses from 'coursesList' (which are not in 'stagedCoursesForAction)
-                                items(coursesList) { course ->
-                                    AvailableCourseItem(course = course) {
-                                        println("Selecting course: ${course.courseCode}")
-                                        // When 'Select' is pressed, add to 'stagedCoursesForAction'
-                                        stagedCoursesForAction.add(it)
-                                        // Update coursesList by removing 'it' and creating a new list instance
-                                        coursesList = (coursesList.toMutableList() - it).sortedBy { c -> c.courseCode }
-                                        println("stagedCoursesForAction after select: ${stagedCoursesForAction.map { c -> c.courseCode }}")
-                                        println("coursesList after select: ${coursesList.map { c -> c.courseCode }}")
-                                    }
-                                }
-                                if (coursesList.isEmpty() && searchCourseQuery.isNotEmpty()) {
-                                    item {
-                                        Text(
-                                            text = "No courses found for '${searchCourseQuery}'",
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(8.dp),
-                                            textAlign = TextAlign.Center,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                } else if (coursesList.isEmpty() && searchCourseQuery.isEmpty()) {
-                                    item {
-                                        Text(
-                                            text = "Loading courses...",
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(8.dp),
-                                            textAlign = TextAlign.Center,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
+                        refreshTrigger += 1
+                    }
+                },
+                // Section Tab
+                enlistedCourses = enlistedCourses,
+                selectedSectionIds = selectedSectionIds,
+                selectedCourseSection = selectedCourseSection,
+                suggestedSchedule = suggestedSchedule,
+                showSuggestionDialog = showSuggestionDialog,
+                onSuggestSchedule = {
+                    val suggestion = SectioningFunctions.suggestValidSchedule(enlistedCourses)
+                    if (suggestion != null) {
+                        suggestedSchedule = suggestion
+                        showSuggestionDialog = true
+                    } else {
+                        context.toast("No valid schedule found.")
+                    }
+                },
+                onToggleSelect = { toggled ->
+                    val existingIndex =
+                        selectedCourseSection.indexOfFirst { it.courseId == toggled.courseId }
+                    val uniqueId = toggled.courseId + (toggled.sectionId)
+                    val isSelected = selectedSectionIds.contains(uniqueId)
+                    if (isSelected) {
+                        selectedSectionIds.remove(uniqueId)
+                        selectedCourseSection.removeAt(existingIndex)
+                    } else {
+                        if (existingIndex != -1) {
+                            val existing = selectedCourseSection[existingIndex]
+                            val existingUniqueId = existing.courseId + existing.sectionId
+                            selectedCourseSection.removeAt(existingIndex)
+                            selectedSectionIds.remove(existingUniqueId)
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Selected Courses (Current Record)", // This table now shows staged changes
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                .padding(8.dp)
-                        ) {
-                            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                // Display courses in 'stagedCoursesForAction' (the current working set)
-                                items(stagedCoursesForAction) { course ->
-                                    // All items in stagedCoursesForAction should be actionable (can be deselected)
-                                    ActionableCourseItem(course = course) {
-                                        println("Deselecting course: ${course.courseCode}")
-                                        // When 'Deselect' is pressed, remove from 'stagedCoursesForAction'
-                                        stagedCoursesForAction.remove(course)
-                                        // Add back to coursesList by creating a new list instance, maintaining sort order
-                                        coursesList = (coursesList.toMutableList() + course).sortedBy { c -> c.courseCode }
-                                        println("stagedCoursesForAction after deselect: ${stagedCoursesForAction.map { c -> c.courseCode }}")
-                                        println("coursesList after deselect: ${coursesList.map { c -> c.courseCode }}")
-                                    }
-                                }
-                                if (stagedCoursesForAction.isEmpty()) { // Check stagedCoursesForAction for display
-                                    item {
-                                        Text(
-                                            text = "No courses selected. Select from the list above.",
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(8.dp),
-                                            textAlign = TextAlign.Center,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Single "Confirm Changes" button
-                        Button(
-                            onClick = {
-                                coroutineScope.launch {
-                                    println("Confirm Changes button pressed.")
-                                    EnlistmentFunctions.processConfirmAction(
-                                        context = context,
-                                        httpClient = httpClient,
-                                        studentId = currentStudentId,
-                                        enlistmentId = enlistmentId, // Pass the current enlistment ID
-                                        initialEnrolledCourses = initialEnrolledCourses,
-                                        finalSelectedCourses = stagedCoursesForAction,
-                                        toast = { context.toast(it) }
-                                    )
-                                    // Trigger refresh
-                                    refreshTrigger += 1 // Use += 1 to increment Int
-                                    println("refreshTrigger incremented to: $refreshTrigger")
-                                }
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(60.dp)
-                        ) {
-                            Text(
-                                text = "Confirm Changes",
-                                fontSize = 18.sp,
-                                textAlign = TextAlign.Center
+                        selectedSectionIds.add(uniqueId)
+                        val firstSchedule = toggled.schedules.firstOrNull()
+                        selectedCourseSection.add(
+                            EnlistedCourse(
+                                courseId = toggled.courseId,
+                                courseName = toggled.courseName,
+                                courseCode = toggled.courseCode,
+                                sectionId = toggled.sectionId,
+                                sectionCode = toggled.sectionCode,
+                                courseUnits = toggled.courseUnits,
+                                day = firstSchedule?.day,
+                                startTime = firstSchedule?.startTime,
+                                endTime = firstSchedule?.endTime
                             )
-                        }
-                    }
-                }
-                1 -> { // Section Tab
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "Available Sections for Enlisted Courses",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = {
-                                        val suggestion = SectioningFunctions.suggestValidSchedule(enlistedCourses)
-                                        if (suggestion != null) {
-                                            suggestedSchedule = suggestion
-                                            showSuggestionDialog = true
-                                        } else {
-                                            context.toast("No valid schedule found.")
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Suggest Schedule")
-                                }
-                            }
-                        }
-
-                        val groupedSections = enlistedCourses
-                            .groupBy { it.courseId + (it.sectionId ?: "") }
-                            .map { (_, entries) ->
-                                val first = entries.first()
-                                GroupedSection(
-                                    courseId = first.courseId,
-                                    courseName = first.courseName,
-                                    courseCode = first.courseCode,
-                                    sectionId = first.sectionId ?: "",
-                                    sectionCode = first.sectionCode ?: "",
-                                    courseUnits = first.courseUnits,
-                                    schedules = entries.mapNotNull { enlistedCourse ->
-                                        if (enlistedCourse.day != null && enlistedCourse.startTime != null && enlistedCourse.endTime != null) {
-                                            ScheduleEntry(enlistedCourse.day, enlistedCourse.startTime, enlistedCourse.endTime)
-                                        } else null
-                                    }
-                                )
-                            }
-
-                        items(groupedSections) { section ->
-                            val uniqueId = section.courseId + section.sectionId
-                            val isSelected = selectedSectionIds.contains(uniqueId)
-
-                            AvailableGroupedSection(
-                                section = section,
-                                isSelected = isSelected,
-                                onToggleSelect = { toggled ->
-                                    val existingIndex = selectedCourseSection.indexOfFirst {
-                                        it.courseId == toggled.courseId
-                                    }
-
-                                    if (isSelected) {
-                                        selectedSectionIds.remove(uniqueId)
-                                        selectedCourseSection.removeAt(existingIndex)
-                                    } else {
-                                        if (existingIndex != -1) {
-                                            val existing = selectedCourseSection[existingIndex]
-                                            val existingUniqueId = existing.courseId + existing.sectionId
-                                            selectedCourseSection.removeAt(existingIndex)
-                                            selectedSectionIds.remove(existingUniqueId)
-                                        }
-                                        selectedSectionIds.add(uniqueId)
-                                        val firstSchedule = toggled.schedules.firstOrNull()
-                                        selectedCourseSection.add(
-                                            EnlistedCourse(
-                                                courseId = toggled.courseId,
-                                                courseName = toggled.courseName,
-                                                courseCode = toggled.courseCode,
-                                                sectionId = toggled.sectionId,
-                                                sectionCode = toggled.sectionCode,
-                                                courseUnits = toggled.courseUnits,
-                                                day = firstSchedule?.day,
-                                                startTime = firstSchedule?.startTime,
-                                                endTime = firstSchedule?.endTime
-                                            )
-                                        )
-                                    }
-                                },
-                                onSectionConfirmed = {
-                                    coroutineScope.launch {
-                                        if (enlistmentId != null) {
-                                            SectioningFunctions.ktorInsertSection(
-                                                context, httpClient, enlistmentId,
-                                                section.courseId, section.sectionId
-                                            )
-                                        } else {
-                                            context.toast("Enlistment ID missing.")
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(600.dp) // Or try different values
-                            ) {
-                                var screen = "Section"
-                                StudentScheduleTimetable(context, currentStudentId, httpClient, screen)
-                            }
-                        }
-                    }
-
-                    // Suggested Schedule Dialog
-                    if (showSuggestionDialog) {
-                        var showDialog by remember { mutableStateOf(false) }
-                        AlertDialog(
-                            onDismissRequest = { showSuggestionDialog = false },
-                            title = { Text("Suggested Schedule") },
-                            text = {
-                                val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
-                                Column(
-                                    modifier = Modifier
-                                        .heightIn(min = 100.dp, max = 400.dp)
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    suggestedSchedule.forEach { section ->
-                                        Text("${section.courseCode} - ${section.courseName}")
-                                        Text("Section: ${section.sectionCode}")
-                                        section.schedules.groupBy { it.day }.forEach { (day, times) ->
-                                            val mergedRanges = times.mapNotNull {
-                                                try {
-                                                    val start = LocalTime.parse(it.startTime, timeFormatter)
-                                                    val end = LocalTime.parse(it.endTime, timeFormatter)
-                                                    start to end
-                                                } catch (e: Exception) {
-                                                    null
-                                                }
-                                            }.sortedBy { it.first }
-                                                .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
-                                                    if (acc.isEmpty()) {
-                                                        acc.add(current)
-                                                    } else {
-                                                        val last = acc.last()
-                                                        if (!current.first.isAfter(last.second)) {
-                                                            acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
-                                                        } else {
-                                                            acc.add(current)
-                                                        }
-                                                    }
-                                                    acc
-                                                }
-
-                                            val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
-                                            val timeRanges = mergedRanges.joinToString(", ") {
-                                                "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
-                                            }
-
-                                            Text("$day: $timeRanges")
-                                        }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        selectedCourseSection.clear()
-                                        selectedSectionIds.clear()
-                                        suggestedSchedule.forEach { grouped ->
-                                            val uniqueId = grouped.courseId + grouped.sectionId
-                                            grouped.schedules.forEach { schedule ->
-                                                selectedCourseSection.add(
-                                                    EnlistedCourse(
-                                                        courseId = grouped.courseId,
-                                                        courseName = grouped.courseName,
-                                                        courseCode = grouped.courseCode,
-                                                        sectionId = grouped.sectionId,
-                                                        sectionCode = grouped.sectionCode,
-                                                        courseUnits = grouped.courseUnits,
-                                                        day = schedule.day,
-                                                        startTime = schedule.startTime,
-                                                        endTime = schedule.endTime
-                                                    )
-                                                )
-                                            }
-                                            selectedSectionIds.add(uniqueId)
-                                        }
-
-                                        // Submit to backend immediately
-                                        coroutineScope.launch {
-                                            if (enlistmentId != null) {
-                                                selectedCourseSection.forEach { course ->
-                                                    val courseId = course.courseId
-                                                    val sectionId = course.sectionId ?: ""
-                                                    SectioningFunctions.ktorInsertSection(
-                                                        context, httpClient, enlistmentId, courseId, sectionId
-                                                    )
-                                                }
-                                                context.toast("Suggested schedule applied and submitted.")
-                                            } else {
-                                                context.toast("Enlistment ID missing.")
-                                            }
-                                        }
-
-                                        showSuggestionDialog = false
-                                    }
-                                ) {
-                                    Text("Apply Schedule")
-                                }
-                            },
-                            dismissButton = {
-                                Button(onClick = { showSuggestionDialog = false }) {
-                                    Text("Cancel")
-                                }
-                            }
                         )
                     }
-                }
-                // NEW
-                2 -> {
-                    val finalizeEnlistedCourses = remember { mutableStateOf<List<FinalizationEnlistedCourse>>(emptyList()) }
-                    var finalizeStudentTerm by remember { mutableStateOf("Loading...") }
-                    val finalizePaymentTypes = listOf("Installment 1", "Installment 2", "Full Payment")
-                    var finalizeSelectedPaymentType by remember { mutableStateOf(finalizePaymentTypes[0]) }
-
-                    val finalizeEnrollmentStatuses = listOf("Not Paid")
-                    var finalizeSelectedEnrollmentStatus by remember { mutableStateOf(finalizeEnrollmentStatuses[0]) }
-
-                    var finalizeIsLoading by remember { mutableStateOf(true) }
-                    var finalizeErrorMessage by remember { mutableStateOf<String?>(null) }
-                    var finalizeIsSubmitting by remember { mutableStateOf(false) }
-
-                    LaunchedEffect(currentStudentId) {
-                        finalizeIsLoading = true
-                        finalizeErrorMessage = null
-                        var rawResponseContent: String? = null
-                        try {
-                            val response = httpClient.get("${SERVER_URL}get_studentFinalization.php?student_id=$currentStudentId")
-                            rawResponseContent = response.bodyAsText()
-                            val parsedData = Json.decodeFromString<StudentFinalizationDataResponse>(rawResponseContent)
-
-                            if (parsedData.status == "success") {
-                                finalizeEnlistedCourses.value = parsedData.courses?.filter { it.SectionID != null } ?: emptyList()
-                                finalizeStudentTerm = parsedData.term ?: "N/A"
-
-                                if (finalizeEnlistedCourses.value.isEmpty()) {
-                                    finalizeErrorMessage = "You have no enlisted and sectioned courses to finalize."
-                                }
-                                if (parsedData.term == null || parsedData.term.isNullOrBlank()) {
-                                    val currentMessage = finalizeErrorMessage ?: ""
-                                    finalizeErrorMessage = currentMessage + (if (currentMessage.isNotEmpty()) ". " else "") + "Could not retrieve student's current term."
-                                    if (finalizeErrorMessage?.trim() == "") finalizeErrorMessage = "Could not retrieve student's current term."
-                                }
-                            } else {
-                                finalizeErrorMessage = "Failed to load data: ${parsedData.message ?: "Unknown error"}"
-                            }
-
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            finalizeErrorMessage = "Network or parsing error loading courses: ${e.localizedMessage ?: "Unknown error"}. " +
-                                    "Raw response from get_studentFinalization.php: '${rawResponseContent ?: "N/A"}'"
-                        } finally {
-                            finalizeIsLoading = false
-                        }
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 16.dp)
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Finalize Enrollment",
-                            style = MaterialTheme.typography.headlineSmall,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-
-                        if (finalizeIsLoading) {
-                            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-                            Text("Loading enrollment details...")
-                        } else if (finalizeErrorMessage != null) {
-                            Text(
-                                text = finalizeErrorMessage!!,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(16.dp)
+                },
+                onSectionConfirmed = { section ->
+                    coroutineScope.launch {
+                        if (enlistmentId != null) {
+                            SectioningFunctions.ktorInsertSection(
+                                context, httpClient, enlistmentId,
+                                section.courseId, section.sectionId
                             )
                         } else {
-                            Text(
-                                text = "Enlisted Courses:",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            if (finalizeEnlistedCourses.value.isNotEmpty()) {
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .heightIn(max = 250.dp)
-                                        .fillMaxWidth()
-                                        .padding(bottom = 16.dp)
-                                ) {
-                                    items(finalizeEnlistedCourses.value) { course ->
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
-                                            elevation = CardDefaults.cardElevation(2.dp)
-                                        ) {
-                                            Column(modifier = Modifier.padding(12.dp)) {
-                                                Text(text = "${course.CourseName} (${course.CourseCode})", style = MaterialTheme.typography.bodyLarge)
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(text = "Units: ${course.CourseUnits}", style = MaterialTheme.typography.bodySmall)
-                                                Text(text = "Section: ${course.SectionCODE ?: "N/A"} (Room: ${course.Room ?: "N/A"})", style = MaterialTheme.typography.bodySmall)
-                                                Text(text = "Instructor: ${course.InstructorFirstName ?: ""} ${course.InstructorLastName ?: ""}", style = MaterialTheme.typography.bodySmall)
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text(
-                                    text = "No courses found for finalization. Please ensure you have enlisted and sectioned your courses.",
-                                    textAlign = TextAlign.Center,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.padding(vertical = 16.dp)
-                                )
-                            }
-
-                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                Text(text = "Payment Type:", style = MaterialTheme.typography.titleSmall)
-                                Row(modifier = Modifier.selectableGroup()) {
-                                    finalizePaymentTypes.forEach { type ->
-                                        Row(
-                                            Modifier
-                                                .height(40.dp)
-                                                .selectable(
-                                                    selected = (finalizeSelectedPaymentType == type),
-                                                    onClick = { finalizeSelectedPaymentType = type }
-                                                )
-                                                .padding(horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            RadioButton(
-                                                selected = (finalizeSelectedPaymentType == type),
-                                                onClick = null
-                                            )
-                                            Text(
-                                                text = type,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(start = 8.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Text(
-                                text = "Term: $finalizeStudentTerm",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-
-                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                Text(text = "Enrollment Status:", style = MaterialTheme.typography.titleSmall)
-                                Row(modifier = Modifier.selectableGroup()) {
-                                    finalizeEnrollmentStatuses.forEach { status ->
-                                        Row(
-                                            Modifier
-                                                .height(40.dp)
-                                                .selectable(
-                                                    selected = (finalizeSelectedEnrollmentStatus == status),
-                                                    onClick = { /* status is fixed */ }
-                                                )
-                                                .padding(horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            RadioButton(
-                                                selected = (finalizeSelectedEnrollmentStatus == status),
-                                                onClick = null
-                                            )
-                                            Text(
-                                                text = status,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(start = 8.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Button(
-                                onClick = {
-                                    if (finalizeEnlistedCourses.value.isEmpty() || finalizeIsSubmitting) {
-                                        context.toast("No courses to finalize or already submitting.")
-                                        return@Button
-                                    }
-                                    if (finalizeStudentTerm == "Loading..." || finalizeStudentTerm == "N/A" || finalizeStudentTerm.isBlank()) {
-                                        context.toast("Please wait for term to load or fix term loading issue before finalizing.")
-                                        return@Button
-                                    }
-
-                                    val unsectionedCourses = finalizeEnlistedCourses.value.filter { it.SectionID == null }
-                                    if (unsectionedCourses.isNotEmpty()) {
-                                        context.toast("Cannot finalize. Some enlisted courses are not yet sectioned.")
-                                        return@Button
-                                    }
-
-                                    val enlistmentIdToFinalize = finalizeEnlistedCourses.value.firstOrNull()?.EnlistmentID
-                                    if (enlistmentIdToFinalize == null) {
-                                        context.toast("Could not find Enlistment ID for finalization.")
-                                        return@Button
-                                    }
-
-                                    finalizeIsSubmitting = true
-                                    coroutineScope.launch {
-                                        try {
-                                            val finalizeResponse = FinalizeFunctions.finalizeEnrollment(
-                                                context = context,
-                                                httpClient = httpClient,
-                                                studentId = currentStudentId,
-                                                enlistmentId = enlistmentIdToFinalize.toString(),
-                                                paymentType = finalizeSelectedPaymentType,
-                                                term = finalizeStudentTerm,
-                                                enrollmentStatus = finalizeSelectedEnrollmentStatus
-                                            )
-                                            if (finalizeResponse.status == "success") {
-                                                context.toast("Enrollment finalized successfully!")
-                                                selectedTabIndex = 0
-                                            } else {
-                                                context.toast("Failed to finalize enrollment: ${finalizeResponse.message ?: "Unknown error"}")
-                                            }
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                            context.toast("Error during enrollment finalization: ${e.localizedMessage ?: "Unknown error"}.")
-                                        } finally {
-                                            finalizeIsSubmitting = false
-                                        }
-                                    }
-                                },
-                                enabled = !finalizeIsLoading && !finalizeIsSubmitting &&
-                                        finalizeEnlistedCourses.value.isNotEmpty() &&
-                                        finalizeEnlistedCourses.value.all { it.SectionID != null } &&
-                                        finalizeStudentTerm != "Loading..." && !finalizeStudentTerm.isBlank()
-                            ) {
-                                Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment")
-                            }
+                            context.toast("Enlistment ID missing.")
                         }
                     }
-                }
-            }
+                },
+                onApplySuggestedSchedule = {
+                    selectedCourseSection.clear()
+                    selectedSectionIds.clear()
+                    suggestedSchedule.forEach { grouped ->
+                        val uniqueId = grouped.courseId + grouped.sectionId
+                        grouped.schedules.forEach { schedule ->
+                            selectedCourseSection.add(
+                                EnlistedCourse(
+                                    courseId = grouped.courseId,
+                                    courseName = grouped.courseName,
+                                    courseCode = grouped.courseCode,
+                                    sectionId = grouped.sectionId,
+                                    sectionCode = grouped.sectionCode,
+                                    courseUnits = grouped.courseUnits,
+                                    day = schedule.day,
+                                    startTime = schedule.startTime,
+                                    endTime = schedule.endTime
+                                )
+                            )
+                        }
+                        selectedSectionIds.add(uniqueId)
+                    }
+                    coroutineScope.launch {
+                        if (enlistmentId != null) {
+                            selectedCourseSection.forEach { course ->
+                                val courseId = course.courseId
+                                val sectionId = course.sectionId ?: ""
+                                SectioningFunctions.ktorInsertSection(
+                                    context, httpClient, enlistmentId, courseId, sectionId
+                                )
+                            }
+                            context.toast("Suggested schedule applied and submitted.")
+                        } else {
+                            context.toast("Enlistment ID missing.")
+                        }
+                    }
+                    showSuggestionDialog = false
+                },
+                onDismissSuggestionDialog = { showSuggestionDialog = false },
+                studentId = studentId,
+                httpClient = httpClient,
+                context = context,
+                // Finalize Tab
+                finalizeEnlistedCourses = finalizeEnlistedCourses.value,
+                finalizeStudentTerm = finalizeStudentTerm,
+                finalizePaymentTypes = finalizePaymentTypes,
+                finalizeSelectedPaymentType = finalizeSelectedPaymentType,
+                onPaymentTypeChange = { newType -> finalizeSelectedPaymentType = newType },
+                finalizeEnrollmentStatuses = finalizeEnrollmentStatuses,
+                finalizeSelectedEnrollmentStatus = finalizeSelectedEnrollmentStatus,
+                finalizeIsLoading = finalizeIsLoading,
+                finalizeErrorMessage = finalizeErrorMessage,
+                finalizeIsSubmitting = finalizeIsSubmitting,
+                onSubmit = {
+                    if (finalizeEnlistedCourses.value.isEmpty() || finalizeIsSubmitting) {
+                        context.toast("No courses to finalize or already submitting.")
+                        return@TabsContent
+                    }
+                    if (finalizeStudentTerm == "Loading..." || finalizeStudentTerm == "N/A" || finalizeStudentTerm.isBlank()) {
+                        context.toast("Please wait for term to load or fix term loading issue before finalizing.")
+                        return@TabsContent
+                    }
+                    val unsectionedCourses =
+                        finalizeEnlistedCourses.value.filter { it.SectionID == null }
+                    if (unsectionedCourses.isNotEmpty()) {
+                        context.toast("Cannot finalize. Some enlisted courses are not yet sectioned.")
+                        return@TabsContent
+                    }
+                    val enlistmentIdToFinalize =
+                        finalizeEnlistedCourses.value.firstOrNull()?.EnlistmentID
+                    if (enlistmentIdToFinalize == null) {
+                        context.toast("Could not find Enlistment ID for finalization.")
+                        return@TabsContent
+                    }
+                    finalizeIsSubmitting = true
+                    coroutineScope.launch {
+                        try {
+                            val finalizeResponse = FinalizeFunctions.finalizeEnrollment(
+                                context = context,
+                                httpClient = httpClient,
+                                studentId = studentId,
+                                enlistmentId = enlistmentIdToFinalize.toString(),
+                                paymentType = finalizeSelectedPaymentType,
+                                term = finalizeStudentTerm,
+                                enrollmentStatus = finalizeSelectedEnrollmentStatus
+                            )
+                            if (finalizeResponse.status == "success") {
+                                context.toast("Enrollment finalized successfully!")
+                                selectedTabIndex = 0
+                            } else {
+                                context.toast("Failed to finalize enrollment: ${finalizeResponse.message ?: "Unknown error"}")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            context.toast("Error during enrollment finalization: ${e.localizedMessage ?: "Unknown error"}.")
+                        } finally {
+                            finalizeIsSubmitting = false
+                        }
+                    }
+                },
+                onStatusChange = { /* status is fixed */ }
+            )
         }
     }
 }
@@ -988,3 +622,4 @@ fun AvailableGroupedSection(section: GroupedSection, isSelected: Boolean, onTogg
         )
     }
 }
+// --- Helper Functions (END) ---
