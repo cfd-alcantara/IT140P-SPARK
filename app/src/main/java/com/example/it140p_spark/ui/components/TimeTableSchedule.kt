@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalDensity
 import com.example.it140p_spark.data.utils.SERVER_URL
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Canvas
+import com.example.it140p_spark.data.models.CourseEventColors
 
 enum class Weekday(val display: String) {
     Monday("Monday"),
@@ -55,7 +56,8 @@ data class SimpleScheduleEvent(
     val day: Weekday,
     val startHour: Float,
     val endHour: Float,
-    val color: Color
+    val color: Color,
+    val onColor: Color
 )
 
 @Serializable
@@ -94,7 +96,7 @@ fun mapDayStringToEnum(day: String): Weekday? {
 }
 
 // --- Conversion function ---
-fun scheduleToSimpleScheduleEvent(schedule: Schedule, color: Color): SimpleScheduleEvent? {
+fun scheduleToSimpleScheduleEvent(schedule: Schedule, color: Color, onColor: Color): SimpleScheduleEvent? {
     val dayEnum = schedule.day?.let { mapDayStringToEnum(it) } ?: return null
     val start = schedule.startTime?.let {
         try { parseTimeToFloat(it) } catch (e: Exception) { return null }
@@ -105,6 +107,7 @@ fun scheduleToSimpleScheduleEvent(schedule: Schedule, color: Color): SimpleSched
     return SimpleScheduleEvent(
         name = schedule.courseCode,
         color = color,
+        onColor = onColor,
         day = dayEnum,
         startHour = start,
         endHour = end
@@ -119,21 +122,24 @@ fun StudentScheduleTimetable(
     screen: String
 ) {
     var events by remember { mutableStateOf<List<SimpleScheduleEvent>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
     val containerColor = MaterialTheme.colorScheme.primaryContainer
-    var showEvents by remember { mutableStateOf(false) }
 
-    // Add a 1 second delay before showing events to allow theme/colors to settle
     LaunchedEffect(studentID, containerColor, screen) {
-        showEvents = false
+        isLoading = true
         val schedule = fetchStudentSchedule(context, httpClient, studentID, screen)
-
-        delay(300)
-        events = schedule.mapNotNull { scheduleToSimpleScheduleEvent(it, containerColor) }
-        showEvents = true
+        events = schedule.mapIndexedNotNull { idx, sched ->
+            scheduleToSimpleScheduleEvent(
+                sched,
+                CourseEventColors.getContainerColor(idx),
+                CourseEventColors.getOnContainerColor(idx)
+            )
+        }
+        isLoading = false
     }
 
-    if (showEvents) {
-        WeeklySchedule(events = mergeAdjacentEvents(events))
+    if (!isLoading) {
+        WeeklySchedule(events = mergeAdjacentEventsWithText(events))
     }
 }
 
@@ -159,7 +165,7 @@ fun SimpleScheduleEventBox(
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = TextOverflow.Clip,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = event.onColor
         )
         Text(
             text = event.name,
@@ -167,7 +173,7 @@ fun SimpleScheduleEventBox(
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = event.onColor
         )
     }
 }
@@ -440,7 +446,7 @@ suspend fun fetchStudentSchedule(context: Context, httpClient: HttpClient, stude
 }
 
 // --- Merge adjacent events function ---
-fun mergeAdjacentEvents(events: List<SimpleScheduleEvent>): List<SimpleScheduleEvent> {
+fun mergeAdjacentEventsWithText(events: List<SimpleScheduleEvent>): List<SimpleScheduleEvent> {
     if (events.isEmpty()) return emptyList()
     val sorted = events.sortedWith(compareBy({ it.day.ordinal }, { it.name }, { it.startHour }))
     val merged = mutableListOf<SimpleScheduleEvent>()
@@ -450,10 +456,9 @@ fun mergeAdjacentEvents(events: List<SimpleScheduleEvent>): List<SimpleScheduleE
         if (
             current.name == next.name &&
             current.day == next.day &&
-            current.endHour == next.startHour &&
-            current.color == next.color
+            current.endHour == next.startHour
         ) {
-            // Merge with current
+            // Merge with current (keep color/onColor of the first in the group)
             current = current.copy(endHour = next.endHour)
         } else {
             merged.add(current)
@@ -461,5 +466,11 @@ fun mergeAdjacentEvents(events: List<SimpleScheduleEvent>): List<SimpleScheduleE
         }
     }
     merged.add(current)
-    return merged
+    // After merging, re-assign color/onColor in order
+    return merged.mapIndexed { idx, event ->
+        event.copy(
+            color = CourseEventColors.getContainerColor(idx),
+            onColor = CourseEventColors.getOnContainerColor(idx)
+        )
+    }
 }
