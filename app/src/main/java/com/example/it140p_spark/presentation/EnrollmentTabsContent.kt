@@ -150,92 +150,73 @@ fun EnlistTabContent(
 ) {
     Column(
         modifier = Modifier
-            .padding(16.dp)
+            .padding(vertical = 8.dp)
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = "Enrolling for Student ID: $currentStudentId",
             fontSize = 18.sp,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
         Text(
             text = "List of Available Courses",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 4.dp)
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
         )
-        Column(
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                .padding(8.dp)
+                .padding(start = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(end = 16.dp)
         ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(coursesList) { course ->
-                    AvailableCourseItem(course = course) {
-                        onSelectCourse(it)
-                    }
+            items(coursesList) { course ->
+                AvailableCourseItem(course = course) {
+                    onSelectCourse(it)
                 }
-                if (coursesList.isEmpty() && searchCourseQuery.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "No courses found for '$searchCourseQuery'",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else if (coursesList.isEmpty() && searchCourseQuery.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Loading courses...",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+            }
+            if (coursesList.isEmpty() && searchCourseQuery.isEmpty()) {
+                item {
+                    Text(
+                        text = "No courses left!",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 100.dp, vertical = 75.dp),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Selected Courses (Current Record)",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 4.dp)
+            text = "List of Selected Courses",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
         )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                .padding(8.dp)
+        LazyRow(modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(end = 16.dp)
         ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(stagedCoursesForAction) { course ->
-                    ActionableCourseItem(course = course) {
-                        onDeselectCourse(course)
-                    }
+            items(stagedCoursesForAction) { course ->
+                ActionableCourseItem(course = course) {
+                    onDeselectCourse(course)
                 }
-                if (stagedCoursesForAction.isEmpty()) {
-                    item {
-                        Text(
-                            text = "No courses selected. Select from the list above.",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+            }
+            if (stagedCoursesForAction.isEmpty()) {
+                item {
+                    Text(
+                        text = "No courses selected.",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 100.dp, vertical = 75.dp),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -244,6 +225,7 @@ fun EnlistTabContent(
             onClick = onConfirmChanges,
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp),
         ) {
             Text(
                 text = "Confirm Changes",

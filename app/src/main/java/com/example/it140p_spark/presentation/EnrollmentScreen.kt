@@ -50,6 +50,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Color
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -446,70 +447,86 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
 
 @Composable
 fun AvailableCourseItem(course: Course, onSelect: (Course) -> Unit) {
-    Row(
+    Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .width(225.dp)
+            .height(175.dp)
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Text(
-            text = "${course.courseCode} - ${course.courseName} (${course.courseUnits} units)",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f)
-        )
-        Button(
-            onClick = { onSelect(course) },
-            modifier = Modifier.padding(start = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
-            shape = RoundedCornerShape(4.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Select")
+            Text(
+                text = "${course.courseCode} - ${course.courseName}",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = "Units: ${course.courseUnits}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { onSelect(course) },
+                modifier = Modifier
+                    .height(28.dp),
+                shape = RoundedCornerShape(4.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFDCEDC8),
+                    contentColor = Color(0xFF33691E)
+                )
+            ) {
+                Text("Select", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
 
 @Composable
 fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
-    Row(
+    Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                RoundedCornerShape(4.dp)
-            )
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.primary,
-                RoundedCornerShape(4.dp)
-            )
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .width(225.dp)
+            .height(175.dp)
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimaryContainer)
     ) {
-        Text(
-            text = "${course.courseCode} - ${course.courseName}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.weight(1f)
-        )
-        Button(
-            onClick = onUnselect,
-            modifier = Modifier.padding(start = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface
-            ),
-            shape = RoundedCornerShape(4.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Deselect")
+            Text(
+                text = "${course.courseCode} - ${course.courseName}",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Button(
+                onClick = onUnselect,
+                modifier = Modifier
+                    .height(28.dp),
+                shape = RoundedCornerShape(4.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFF8BBD0),
+                    contentColor = Color(0xFF880E4F)
+                )
+            ) {
+                Text("Remove", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
@@ -530,10 +547,13 @@ fun AvailableGroupedSection(
             .height(250.dp)
             .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         ),
-        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-        else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        border = if (isSelected) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimaryContainer)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        }
     ) {
         Column(
             modifier = Modifier
@@ -542,11 +562,13 @@ fun AvailableGroupedSection(
         ) {
             Text(
                 text = "${section.courseCode} - ${section.courseName}",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = "Section: ${section.sectionCode}",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             section.schedules
@@ -584,11 +606,12 @@ fun AvailableGroupedSection(
 
                     Text(
                         text = "$day: $timeRanges",
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                     )
                 }
             Spacer(modifier = Modifier.weight(1f))
-            androidx.compose.material3.FilledTonalButton(
+            Button(
                 onClick = {
                     if (isSelected) {
                         onToggleSelect(section)
@@ -600,10 +623,14 @@ fun AvailableGroupedSection(
                     .padding(top = 8.dp)
                     .height(32.dp), // Extra small height
                 shape = RoundedCornerShape(4.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSelected) Color(0xFFF8BBD0) else Color(0xFFDCEDC8),
+                    contentColor = if (isSelected) Color(0xFF880E4F) else Color(0xFF33691E)
+                )
             ) {
                 Text(
-                    if (isSelected) "Deselect" else "Select",
+                    if (isSelected) "Remove" else "Select",
                     style = MaterialTheme.typography.labelMedium
                 )
             }
