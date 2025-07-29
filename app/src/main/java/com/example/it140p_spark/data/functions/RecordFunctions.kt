@@ -1,6 +1,6 @@
 package com.example.it140p_spark.data.functions
 
-import com.example.it140p_spark.data.SERVER_URL
+import com.example.it140p_spark.data.utils.SERVER_URL
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText

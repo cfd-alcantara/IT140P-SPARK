@@ -299,12 +299,27 @@ fun EnrollmentRecordCard(record: EnrollmentRecord, isSelected: Boolean, onCardCl
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(4.dp))
+            // 1. Sum total cost
+            val totalCost = record.cost.sum()
+
+// 2. List individual cost items
+            record.cost.forEachIndexed { index, cost ->
+                Text(
+                    text = "Charge ${index + 1}: ₱${String.format("%.2f", cost)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+// 3. Total Cost
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Cost: ₱${String.format("%.2f", record.cost)}", // Format cost to 2 decimal places
+                text = "Total Cost: ₱${String.format("%.2f", totalCost)}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
+
         }
     }
 }

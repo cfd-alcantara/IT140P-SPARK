@@ -10,7 +10,7 @@ data class EnrollmentRecord(
     @SerialName("term") val term: String,
     @SerialName("paymentType") val paymentType: String,
     @SerialName("status") val status: String,
-    @SerialName("cost") val cost: Float
+    @SerialName("cost") val cost: List<Double>
 )
 
 @Serializable
