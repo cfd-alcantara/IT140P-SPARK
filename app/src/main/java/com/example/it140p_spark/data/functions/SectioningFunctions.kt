@@ -45,6 +45,25 @@ object SectioningFunctions {
         }
     }
 
+    suspend fun ktorRemoveSection(
+        context: Context,
+        httpClient: HttpClient,
+        enlistmentId: String,
+        courseId: String
+    ): Boolean {
+        return try {
+            val url = "${SERVER_URL}remove_section.php?EnlistmentID=$enlistmentId&CourseID=$courseId"
+            val response = httpClient.get(url)
+            val body = response.bodyAsText()
+            val result = Json.decodeFromString<EnrollmentResponse>(body)
+            result.status == "success"
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+
+
     fun suggestValidSchedule(sections: List<EnlistedCourse>): List<GroupedSection>? {
         val grouped = sections.groupBy { it.courseId + (it.sectionCode ?: "") }
         val groupedSections = grouped.map { (_, entries) ->

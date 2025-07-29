@@ -49,6 +49,9 @@ import com.example.it140p_spark.ui.components.StudentScheduleTimetable
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.runtime.*
+import androidx.compose.runtime.key
+import io.ktor.client.HttpClient
 
 @Composable
 fun TabsContent(
@@ -233,6 +236,7 @@ fun EnlistTabContent(
         }
     }
 }
+
 @Composable
 fun SectionTabContent(
     enlistedCourses: List<EnlistedCourse>,
@@ -249,6 +253,8 @@ fun SectionTabContent(
     httpClient: HttpClient,
     context: Context
 ) {
+    var timetableKey by remember { mutableStateOf(0) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -259,7 +265,9 @@ fun SectionTabContent(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = onSuggestSchedule,
-                    modifier =Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                 ) {
                     Text("Suggest Schedule")
                 }
@@ -270,7 +278,9 @@ fun SectionTabContent(
             Text(
                 text = "Available Sections for Enlisted Courses:",
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
             )
         }
 
@@ -309,19 +319,25 @@ fun SectionTabContent(
                         section = section,
                         isSelected = isSelected,
                         onToggleSelect = { onToggleSelect(it) },
-                        onSectionConfirmed = { onSectionConfirmed(it) }
+                        onSectionConfirmed = {
+                            onSectionConfirmed(it)
+                            timetableKey++ // Trigger recomposition of the timetable
+                        }
                     )
                 }
             }
         }
+
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(600.dp)
-            ) {
-                val screen = "Section"
-                StudentScheduleTimetable(context, studentId, httpClient, screen)
+            key(timetableKey) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(600.dp)
+                ) {
+                    val screen = "Section"
+                    StudentScheduleTimetable(context, studentId, httpClient, screen)
+                }
             }
         }
     }
@@ -390,6 +406,7 @@ fun SectionTabContent(
 }
 
 
+
 @Composable
 fun FinalizeTabContent(
     finalizeEnlistedCourses: List<FinalizationEnlistedCourse>,
@@ -440,7 +457,7 @@ fun FinalizeTabContent(
                         Card(
                             modifier = Modifier
                                 .width(250.dp)
-                                .height(200.dp),
+                                .height(210.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                             ),

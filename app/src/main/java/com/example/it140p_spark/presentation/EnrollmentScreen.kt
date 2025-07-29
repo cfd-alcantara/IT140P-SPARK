@@ -298,10 +298,28 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                         selectedCourseSection.indexOfFirst { it.courseId == toggled.courseId }
                     val uniqueId = toggled.courseId + (toggled.sectionId)
                     val isSelected = selectedSectionIds.contains(uniqueId)
+
                     if (isSelected) {
                         selectedSectionIds.remove(uniqueId)
                         selectedCourseSection.removeAt(existingIndex)
+
+                        coroutineScope.launch {
+                            if (enlistmentId != null) {
+                                val success = SectioningFunctions.ktorRemoveSection(
+                                    context = context,
+                                    httpClient = httpClient,
+                                    enlistmentId = enlistmentId,
+                                    courseId = toggled.courseId
+                                )
+                                if (!success) {
+                                    context.toast("Failed to nullify section on server.")
+                                }
+                            } else {
+                                context.toast("Enlistment ID missing.")
+                            }
+                        }
                     } else {
+                        // Add section normally
                         if (existingIndex != -1) {
                             val existing = selectedCourseSection[existingIndex]
                             val existingUniqueId = existing.courseId + existing.sectionId
@@ -379,6 +397,7 @@ fun EnrollmentScreen(studentId: String, padding: PaddingValues) {
                 studentId = studentId,
                 httpClient = httpClient,
                 context = context,
+
                 // Finalize Tab
                 finalizeEnlistedCourses = finalizeEnlistedCourses.value,
                 finalizeStudentTerm = finalizeStudentTerm,
@@ -543,7 +562,7 @@ fun AvailableGroupedSection(
 
     Card(
         modifier = Modifier
-            .width(200.dp)
+            .width(250.dp)
             .height(250.dp)
             .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(
