@@ -1,5 +1,6 @@
 package com.example.it140p_spark.presentation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -204,7 +205,6 @@ fun BillingScreen(studentId: String, padding: PaddingValues) { // Added studentI
                     }
                     Spacer(modifier = Modifier.height(16.dp)) // Space between list and button
 
-                    // New Button
                     Button(
                         onClick = {
                             selectedEnrollmentRecord?.let { recordToUpdate ->
@@ -226,9 +226,7 @@ fun BillingScreen(studentId: String, padding: PaddingValues) { // Added studentI
                         },
                         enabled = selectedEnrollmentRecord != null, // Enable only if a record is selected
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
+                            .fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -238,7 +236,6 @@ fun BillingScreen(studentId: String, padding: PaddingValues) { // Added studentI
                     ) {
                         Text(
                             text = if (selectedEnrollmentRecord != null) "Process Selected Enrollment" else "Select an Enrollment to Process",
-                            fontSize = 18.sp,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -261,15 +258,20 @@ fun EnrollmentRecordCard(record: EnrollmentRecord, isSelected: Boolean, onCardCl
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp)
-            .clickable { onCardClick(record) } // Make the card clickable
-            .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline,
-                shape = RoundedCornerShape(12.dp)
-            ),
-        elevation = CardDefaults.cardElevation(4.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onCardClick(record) },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        ),
+        border = if (isSelected) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        },
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
