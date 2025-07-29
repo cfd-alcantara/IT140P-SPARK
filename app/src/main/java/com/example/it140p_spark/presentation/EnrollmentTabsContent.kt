@@ -1,11 +1,13 @@
 package com.example.it140p_spark.presentation
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import io.ktor.client.*
 import com.example.it140p_spark.data.models.*
@@ -16,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -266,24 +270,26 @@ fun SectionTabContent(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Available Sections for Enlisted Courses",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onSuggestSchedule,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 ) {
                     Text("Suggest Schedule")
                 }
             }
+        }
+
+        item {
+            Text(
+                text = "Available Sections for Enlisted Courses:",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
         }
 
         val groupedSections = enlistedCourses
@@ -305,16 +311,26 @@ fun SectionTabContent(
                 )
             }
 
-        items(groupedSections) { section ->
-            val uniqueId = section.courseId + section.sectionId
-            val isSelected = selectedSectionIds.contains(uniqueId)
+        item {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(end = 16.dp)
+            ) {
+                items(groupedSections) { section ->
+                    val uniqueId = section.courseId + section.sectionId
+                    val isSelected = selectedSectionIds.contains(uniqueId)
 
-            AvailableGroupedSection(
-                section = section,
-                isSelected = isSelected,
-                onToggleSelect = { onToggleSelect(it) },
-                onSectionConfirmed = { onSectionConfirmed(it) }
-            )
+                    AvailableGroupedSection(
+                        section = section,
+                        isSelected = isSelected,
+                        onToggleSelect = { onToggleSelect(it) },
+                        onSectionConfirmed = { onSectionConfirmed(it) }
+                    )
+                }
+            }
         }
         item {
             Box(
@@ -410,16 +426,10 @@ fun FinalizeTabContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .padding(vertical = 16.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Finalize Enrollment",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
         if (finalizeIsLoading) {
             CircularProgressIndicator(modifier = Modifier.padding(16.dp))
             Text("Loading enrollment details...")
@@ -433,26 +443,30 @@ fun FinalizeTabContent(
         } else {
             Text(
                 text = "Enlisted Courses:",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp)
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             )
             if (finalizeEnlistedCourses.isNotEmpty()) {
-                LazyColumn(
+                LazyRow(
                     modifier = Modifier
-                        .heightIn(max = 250.dp)
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp)
+                        .padding(start = 16.dp), // Only left padding for the row
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(end = 16.dp)
                 ) {
                     items(finalizeEnlistedCourses) { course ->
                         Card(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            elevation = CardDefaults.cardElevation(2.dp)
+                                .width(250.dp)
+                                .height(200.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(text = "${course.CourseName} (${course.CourseCode})", style = MaterialTheme.typography.bodyLarge)
-                                Spacer(modifier = Modifier.height(4.dp))
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(text = "${course.CourseName} (${course.CourseCode})", style = MaterialTheme.typography.titleMedium)
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(text = "Units: ${course.CourseUnits}", style = MaterialTheme.typography.bodySmall)
                                 Text(text = "Section: ${course.SectionCODE ?: "N/A"} (Room: ${course.Room ?: "N/A"})", style = MaterialTheme.typography.bodySmall)
                                 Text(text = "Instructor: ${course.InstructorFirstName ?: ""} ${course.InstructorLastName ?: ""}", style = MaterialTheme.typography.bodySmall)
@@ -465,11 +479,11 @@ fun FinalizeTabContent(
                     text = "No courses found for finalization. Please ensure you have enlisted and sectioned your courses.",
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(vertical = 16.dp)
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)
                 )
             }
 
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(text = "Payment Type:", style = MaterialTheme.typography.titleSmall)
                 val selectedIndex = finalizePaymentTypes.indexOf(finalizeSelectedPaymentType)
                 SingleChoiceSegmentedButtonRow {
@@ -490,10 +504,10 @@ fun FinalizeTabContent(
             Text(
                 text = "Term: $finalizeStudentTerm",
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(text = "Enrollment Status:", style = MaterialTheme.typography.titleSmall)
                 Row(modifier = Modifier.selectableGroup()) {
                     finalizeEnrollmentStatuses.forEach { status ->
@@ -520,17 +534,17 @@ fun FinalizeTabContent(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
             Button(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
                 onClick = onSubmit,
                 enabled = !finalizeIsLoading && !finalizeIsSubmitting &&
                         finalizeEnlistedCourses.isNotEmpty() &&
                         finalizeEnlistedCourses.all { it.SectionID != null } &&
                         finalizeStudentTerm != "Loading..." && finalizeStudentTerm.isNotBlank()
             ) {
-                Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment")
             }
         }
     }

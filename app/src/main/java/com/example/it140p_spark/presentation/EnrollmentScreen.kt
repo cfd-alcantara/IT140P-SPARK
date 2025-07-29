@@ -2,6 +2,7 @@ package com.example.it140p_spark.presentation
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,9 +11,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,6 +47,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.TextButton
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -508,93 +515,98 @@ fun ActionableCourseItem(course: Course, onUnselect: () -> Unit) {
 }
 
 @Composable
-fun AvailableGroupedSection(section: GroupedSection, isSelected: Boolean, onToggleSelect: (GroupedSection) -> Unit, onSectionConfirmed: (GroupedSection) -> Unit) {
+fun AvailableGroupedSection(
+    section: GroupedSection,
+    isSelected: Boolean,
+    onToggleSelect: (GroupedSection) -> Unit,
+    onSectionConfirmed: (GroupedSection) -> Unit
+) {
     var showDialog by remember { mutableStateOf(false) }
     val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
 
-
-    Column(
+    Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                else MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(4.dp)
-            )
-            .border(
-                1.dp,
-                if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(4.dp)
-            )
-            .padding(8.dp)
+            .width(200.dp)
+            .height(250.dp)
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+        else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        Text(
-            text = "${section.courseCode} - ${section.courseName}",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "Section: ${section.sectionCode}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        section.schedules
-            .groupBy { it.day }
-            .forEach { (day, times) ->
-                val mergedRanges = times.mapNotNull {
-                    try {
-                        val start = LocalTime.parse(it.startTime, timeFormatter)
-                        val end = LocalTime.parse(it.endTime, timeFormatter)
-                        start to end
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        null
-                    }
-                }.sortedBy { it.first }
-                    .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
-                        if (acc.isEmpty()) {
-                            acc.add(current)
-                        } else {
-                            val last = acc.last()
-                            if (!current.first.isAfter(last.second)) {
-                                acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
-                            } else {
-                                acc.add(current)
-                            }
-                        }
-                        acc
-                    }
-
-                val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
-
-                val timeRanges = mergedRanges.joinToString(", ") {
-                    "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
-                }
-
-                Text(
-                    text = "$day: $timeRanges",
-                    style = MaterialTheme.typography.labelSmall
-                )
-
-            }
-
-
-        Button(
-            onClick = {
-                if (isSelected) {
-                    onToggleSelect(section)
-                } else {
-                    showDialog = true
-                }
-            },
-            modifier = Modifier.padding(top = 8.dp),
-            shape = RoundedCornerShape(4.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant
-                else MaterialTheme.colorScheme.primary
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            Text(if (isSelected) "Deselect" else "Select")
+            Text(
+                text = "${section.courseCode} - ${section.courseName}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Section: ${section.sectionCode}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            section.schedules
+                .groupBy { it.day }
+                .forEach { (day, times) ->
+                    val mergedRanges = times.mapNotNull {
+                        try {
+                            val start = LocalTime.parse(it.startTime, timeFormatter)
+                            val end = LocalTime.parse(it.endTime, timeFormatter)
+                            start to end
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            null
+                        }
+                    }.sortedBy { it.first }
+                        .fold(mutableListOf<Pair<LocalTime, LocalTime>>()) { acc, current ->
+                            if (acc.isEmpty()) {
+                                acc.add(current)
+                            } else {
+                                val last = acc.last()
+                                if (!current.first.isAfter(last.second)) {
+                                    acc[acc.lastIndex] = last.first to maxOf(last.second, current.second)
+                                } else {
+                                    acc.add(current)
+                                }
+                            }
+                            acc
+                        }
+
+                    val displayFormatter = DateTimeFormatter.ofPattern("h:mm a")
+
+                    val timeRanges = mergedRanges.joinToString(", ") {
+                        "${it.first.format(displayFormatter)} - ${it.second.format(displayFormatter)}"
+                    }
+
+                    Text(
+                        text = "$day: $timeRanges",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            Spacer(modifier = Modifier.weight(1f))
+            androidx.compose.material3.FilledTonalButton(
+                onClick = {
+                    if (isSelected) {
+                        onToggleSelect(section)
+                    } else {
+                        showDialog = true
+                    }
+                },
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .height(32.dp), // Extra small height
+                shape = RoundedCornerShape(4.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    if (isSelected) "Deselect" else "Select",
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
         }
     }
 
@@ -606,7 +618,7 @@ fun AvailableGroupedSection(section: GroupedSection, isSelected: Boolean, onTogg
                 Text("Are you sure you want to select this section?\n\n${section.courseCode} (${section.sectionCode})")
             },
             confirmButton = {
-                Button(onClick = {
+                TextButton(onClick = {
                     onToggleSelect(section)
                     onSectionConfirmed(section)
                     showDialog = false
@@ -615,7 +627,7 @@ fun AvailableGroupedSection(section: GroupedSection, isSelected: Boolean, onTogg
                 }
             },
             dismissButton = {
-                Button(onClick = { showDialog = false }) {
+                TextButton(onClick = { showDialog = false }) {
                     Text("Cancel")
                 }
             }
