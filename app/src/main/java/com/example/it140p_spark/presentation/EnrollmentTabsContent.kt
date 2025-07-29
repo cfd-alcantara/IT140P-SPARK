@@ -32,6 +32,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -234,19 +238,11 @@ fun EnlistTabContent(
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onConfirmChanges,
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
         ) {
             Text(
                 text = "Confirm Changes",
-                fontSize = 18.sp,
-                textAlign = TextAlign.Center
             )
         }
     }
@@ -279,13 +275,11 @@ fun SectionTabContent(
                     text = "Available Sections for Enlisted Courses",
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onSuggestSchedule,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Suggest Schedule")
                 }
@@ -384,12 +378,12 @@ fun SectionTabContent(
                 }
             },
             confirmButton = {
-                Button(onClick = onApplySuggestedSchedule) {
+                TextButton(onClick = onApplySuggestedSchedule) {
                     Text("Apply Schedule")
                 }
             },
             dismissButton = {
-                Button(onClick = onDismissSuggestionDialog) {
+                TextButton(onClick = onDismissSuggestionDialog) {
                     Text("Cancel")
                 }
             }
@@ -477,28 +471,18 @@ fun FinalizeTabContent(
 
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(text = "Payment Type:", style = MaterialTheme.typography.titleSmall)
-                Row(modifier = Modifier.selectableGroup()) {
-                    finalizePaymentTypes.forEach { type ->
-                        Row(
-                            Modifier
-                                .height(40.dp)
-                                .selectable(
-                                    selected = (finalizeSelectedPaymentType == type),
-                                    onClick = { onPaymentTypeChange(type) }
-                                )
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = (finalizeSelectedPaymentType == type),
-                                onClick = null
-                            )
-                            Text(
-                                text = type,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
+                val selectedIndex = finalizePaymentTypes.indexOf(finalizeSelectedPaymentType)
+                SingleChoiceSegmentedButtonRow {
+                    finalizePaymentTypes.forEachIndexed { index, type ->
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = finalizePaymentTypes.size
+                            ),
+                            onClick = { onPaymentTypeChange(type) },
+                            selected = index == selectedIndex,
+                            label = { Text(type, fontSize = 12.sp) }
+                        )
                     }
                 }
             }
@@ -546,7 +530,7 @@ fun FinalizeTabContent(
                         finalizeEnlistedCourses.all { it.SectionID != null } &&
                         finalizeStudentTerm != "Loading..." && finalizeStudentTerm.isNotBlank()
             ) {
-                Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment")
+                Text(if (finalizeIsSubmitting) "Submitting..." else "Submit Enrollment", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
         }
     }
